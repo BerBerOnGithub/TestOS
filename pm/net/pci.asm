@@ -216,22 +216,21 @@ pci_init:
     and  eax, 0xFFFFFFF0     ; mask off flags (bits 3:0)
     mov  [pci_e1000_bar0], eax
 
+    ; enable PCI Bus Master (bit 2) + Memory Space (bit 1)
+    ; without Bus Master Enable the NIC cannot DMA TX/RX descriptors
+    xor  cl, cl
+    mov  ch, 0x04            ; PCI Command register
+    call pci_make_addr
+    call pci_read32
+    or   eax, 0x06           ; bit2=BusMaster  bit1=MemorySpace
+    call pci_write32
+
     ; read interrupt line
     xor  cl, cl
     mov  ch, PCI_REG_INTLINE
     call pci_make_addr
     call pci_read32
     mov  [pci_e1000_irq], al
-
-    ; enable Bus Master (bit 2) in PCI Command register (offset 0x04)
-    ; QEMU's pci_dma_write/read uses bus_master_as — without this bit,
-    ; all NIC DMA to/from guest RAM silently fails (RX packets never land)
-    xor  cl, cl
-    mov  ch, 0x04
-    call pci_make_addr
-    call pci_read32
-    or   eax, (1 << 2) | (1 << 1)   ; Bus Master | Memory Space
-    call pci_write32
 
 .next_dev:
     inc  bh

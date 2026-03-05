@@ -380,7 +380,7 @@ pm_str_ping_rx:       db ' received', 0
 pm_str_ping_usage:    db ' Usage: ping <ip>  e.g. ping 10.0.2.2', 13, 10, 0
 
 ; ---------------------------------------------------------------------------
-; cmd_netdbg - send one ICMP echo to gateway, print reply or timeout
+; cmd_netdbg - comprehensive NIC diagnostics
 ; ---------------------------------------------------------------------------
 cmd_netdbg:
     push eax
@@ -392,78 +392,391 @@ cmd_netdbg:
 
     call pm_newline
 
-    cmp  byte [e1000_ready], 0
-    je   .no_nic
-
-    ; reinit NIC to reset RX ring state (e1000_rx_tail, RDH, RDT)
-    call e1000_init
-    call arp_init
-
-    ; show our IP
-    mov  esi, pm_str_ndbg_ourip
+    ; == Section 1: NIC state ===============================================
+    mov  esi, pm_str_ndbg_hdr1
     mov  bl, 0x0B
+    call pm_puts
+
+    ; e1000_ready
+    mov  esi, pm_str_ndbg_ready
+    mov  bl, 0x07
+    call pm_puts
+    movzx eax, byte [e1000_ready]
+    call pm_print_hex32
+    call pm_newline
+
+    ; PCI Command register
+    mov  esi, pm_str_ndbg_pcicmd
+    mov  bl, 0x07
+    call pm_puts
+    mov  bl,  [pci_e1000_bus]
+    mov  bh,  [pci_e1000_dev]
+    xor  cl, cl
+    mov  ch, 0x04
+    call pci_make_addr
+    call pci_read32
+    call pm_print_hex32
+    call pm_newline
+
+    ; BAR0
+    mov  esi, pm_str_ndbg_bar0
+    mov  bl, 0x07
+    call pm_puts
+    mov  eax, [pci_e1000_bar0]
+    call pm_print_hex32
+    call pm_newline
+
+    ; CTRL
+    mov  esi, pm_str_ndbg_ctrl
+    mov  bl, 0x07
+    call pm_puts
+    mov  edx, E1000_CTRL
+    call e1000_mmio_read
+    call pm_print_hex32
+    call pm_newline
+
+    ; STATUS
+    mov  esi, pm_str_ndbg_status
+    mov  bl, 0x07
+    call pm_puts
+    mov  edx, E1000_STATUS
+    call e1000_mmio_read
+    call pm_print_hex32
+    call pm_newline
+
+    ; RCTL
+    mov  esi, pm_str_ndbg_rctlv
+    mov  bl, 0x07
+    call pm_puts
+    mov  edx, E1000_RCTL
+    call e1000_mmio_read
+    call pm_print_hex32
+    call pm_newline
+
+    ; TCTL
+    mov  esi, pm_str_ndbg_tctlv
+    mov  bl, 0x07
+    call pm_puts
+    mov  edx, E1000_TCTL
+    call e1000_mmio_read
+    call pm_print_hex32
+    call pm_newline
+
+    ; RAL0 / RAH0
+    mov  esi, pm_str_ndbg_ral0
+    mov  bl, 0x07
+    call pm_puts
+    mov  edx, E1000_RAL0
+    call e1000_mmio_read
+    call pm_print_hex32
+    mov  esi, pm_str_ndbg_slash
+    mov  bl, 0x07
+    call pm_puts
+    mov  edx, E1000_RAH0
+    call e1000_mmio_read
+    call pm_print_hex32
+    call pm_newline
+
+    ; TDH / TDT
+    mov  esi, pm_str_ndbg_tdhdt
+    mov  bl, 0x07
+    call pm_puts
+    mov  edx, E1000_TDH
+    call e1000_mmio_read
+    call pm_print_hex32
+    mov  esi, pm_str_ndbg_slash
+    mov  bl, 0x07
+    call pm_puts
+    mov  edx, E1000_TDT
+    call e1000_mmio_read
+    call pm_print_hex32
+    call pm_newline
+
+    ; RDH / RDT / sw tail
+    mov  esi, pm_str_ndbg_rdhdtreg
+    mov  bl, 0x07
+    call pm_puts
+    mov  edx, E1000_RDH
+    call e1000_mmio_read
+    call pm_print_hex32
+    mov  esi, pm_str_ndbg_slash
+    mov  bl, 0x07
+    call pm_puts
+    mov  edx, E1000_RDT
+    call e1000_mmio_read
+    call pm_print_hex32
+    mov  esi, pm_str_ndbg_swtail
+    mov  bl, 0x07
+    call pm_puts
+    mov  eax, [e1000_rx_tail]
+    call pm_print_hex32
+    call pm_newline
+
+    ; TX desc[0] status byte
+    mov  esi, pm_str_ndbg_txd0
+    mov  bl, 0x07
+    call pm_puts
+    movzx eax, byte [E1000_TX_DESC_BASE + 12]
+    call pm_print_hex32
+    call pm_newline
+
+    ; RX desc[0] status byte
+    mov  esi, pm_str_ndbg_rxd0
+    mov  bl, 0x07
+    call pm_puts
+    movzx eax, byte [E1000_RX_DESC_BASE + 11]
+    call pm_print_hex32
+    call pm_newline
+
+    ; == Section 2: IP config ===============================================
+    mov  esi, pm_str_ndbg_hdr2
+    mov  bl, 0x0B
+    call pm_puts
+
+    mov  esi, pm_str_ndbg_ourip
+    mov  bl, 0x07
     call pm_puts
     mov  eax, [net_our_ip]
     call pm_print_ip
     call pm_newline
 
-    ; show gateway
     mov  esi, pm_str_ndbg_gw
-    mov  bl, 0x0B
+    mov  bl, 0x07
     call pm_puts
     mov  eax, [net_our_gw]
     call pm_print_ip
     call pm_newline
 
-    ; send ping
-    mov  esi, pm_str_ndbg_sending
+    mov  esi, pm_str_ndbg_gwmac
+    mov  bl, 0x07
+    call pm_puts
+    mov  eax, [net_our_gw]
+    call arp_resolve
+    jc   .no_gw_mac
+    mov  edi, esi
+    mov  ecx, 6
+.gmac:
+    movzx eax, byte [edi]
+    call pm_print_hex8
+    inc  edi
+    cmp  ecx, 1
+    je   .gmac_done
+    push eax
+    mov  al, ':'
+    mov  bl, 0x07
+    call pm_putc
+    pop  eax
+.gmac_done:
+    loop .gmac
+    call pm_newline
+    jmp  .do_send
+
+.no_gw_mac:
+    mov  esi, pm_str_ndbg_nomac
+    mov  bl, 0x0C
+    call pm_puts
+    jmp  .done
+
+    ; == Section 3: TX test =================================================
+.do_send:
+    mov  esi, pm_str_ndbg_hdr3
+    mov  bl, 0x0B
+    call pm_puts
+
+    ; dump RX desc[0] raw bytes BEFORE send
+    mov  esi, pm_str_ndbg_rxd_pre
     mov  bl, 0x0E
     call pm_puts
+    mov  edi, E1000_RX_DESC_BASE
+    mov  ecx, 16
+.rxd_pre_loop:
+    movzx eax, byte [edi]
+    call pm_print_hex8
+    mov  al, ' '
+    mov  bl, 0x07
+    call pm_putc
+    inc  edi
+    loop .rxd_pre_loop
+    call pm_newline
+
+    ; snapshot TDH/TDT before send
+    mov  edx, E1000_TDH
+    call e1000_mmio_read
+    mov  [ndbg_tdh_before], eax
+    mov  edx, E1000_TDT
+    call e1000_mmio_read
+    mov  [ndbg_tdt_before], eax
 
     mov  byte [icmp_got_reply], 0
     mov  eax, [net_our_gw]
-    mov  cx,  1
+    mov  cx, 1
     call icmp_send_echo
     jc   .send_err
 
-    ; snapshot RDH before sending, wait for it to INCREASE
-    mov  edx, E1000_RDH
+    ; small delay to let QEMU process - do some MMIO reads
+    mov  ecx, 10
+.qemu_yield:
+    mov  edx, E1000_STATUS
     call e1000_mmio_read
-    mov  [ndbg_rdh_start], eax
+    loop .qemu_yield
 
-    mov  dword [ndbg_poll], 10000000
+    ; dump RX desc[0] raw bytes AFTER send (QEMU may have written reply already)
+    mov  esi, pm_str_ndbg_rxd_post
+    mov  bl, 0x0E
+    call pm_puts
+    mov  edi, E1000_RX_DESC_BASE
+    mov  ecx, 16
+.rxd_post_loop:
+    movzx eax, byte [edi]
+    call pm_print_hex8
+    mov  al, ' '
+    mov  bl, 0x07
+    call pm_putc
+    inc  edi
+    loop .rxd_post_loop
+    call pm_newline
+
+    ; snapshot TDH/TDT after send
+    mov  edx, E1000_TDH
+    call e1000_mmio_read
+    mov  [ndbg_tdh_after], eax
+    mov  edx, E1000_TDT
+    call e1000_mmio_read
+    mov  [ndbg_tdt_after], eax
+
+    mov  esi, pm_str_ndbg_txbefore
+    mov  bl, 0x07
+    call pm_puts
+    mov  eax, [ndbg_tdh_before]
+    call pm_print_hex32
+    mov  esi, pm_str_ndbg_slash
+    mov  bl, 0x07
+    call pm_puts
+    mov  eax, [ndbg_tdt_before]
+    call pm_print_hex32
+    call pm_newline
+
+    mov  esi, pm_str_ndbg_txafter
+    mov  bl, 0x07
+    call pm_puts
+    mov  eax, [ndbg_tdh_after]
+    call pm_print_hex32
+    mov  esi, pm_str_ndbg_slash
+    mov  bl, 0x07
+    call pm_puts
+    mov  eax, [ndbg_tdt_after]
+    call pm_print_hex32
+    call pm_newline
+
+    ; TX IP header
+    mov  esi, pm_str_ndbg_txhdr
+    mov  bl, 0x07
+    call pm_puts
+    mov  edi, ip_tx_buf
+    mov  ecx, 20
+.tx_dump:
+    movzx eax, byte [edi]
+    call pm_print_hex8
+    mov  al, ' '
+    mov  bl, 0x07
+    call pm_putc
+    inc  edi
+    loop .tx_dump
+    call pm_newline
+
+    ; == Section 4: RX wait =================================================
+    mov  esi, pm_str_ndbg_hdr4
+    mov  bl, 0x0B
+    call pm_puts
+
+    mov  esi, pm_str_ndbg_waiting
+    mov  bl, 0x07
+    call pm_puts
+
+    mov  dword [ndbg_poll], 2000000
+    mov  dword [ndbg_rdh_last], 0
 .poll:
+    ; check if RDH moved (NIC received something)
     mov  edx, E1000_RDH
     call e1000_mmio_read
-    cmp  eax, [ndbg_rdh_start]
-    jne  .rdh_moved
-    dec  dword [ndbg_poll]
-    jnz  .poll
-    mov  esi, pm_str_ndbg_timeout
-    mov  bl, 0x0C
-    call pm_puts
-    jmp  .done
-
-.rdh_moved:
-    mov  dword [ndbg_poll], 200
-.drain:
-    call icmp_poll
-    cmp  byte [icmp_got_reply], 1
-    je   .got_reply
-    dec  dword [ndbg_poll]
-    jnz  .drain
-    mov  esi, pm_str_ndbg_timeout
-    mov  bl, 0x0C
-    call pm_puts
-    jmp  .done
-
-.got_reply:
-    mov  esi, pm_str_ndbg_reply
+    cmp  eax, [ndbg_rdh_last]
+    je   .poll_recv
+    ; RDH changed - show it
+    mov  [ndbg_rdh_last], eax
+    mov  esi, pm_str_ndbg_rdhchg
     mov  bl, 0x0A
     call pm_puts
-    mov  eax, [net_our_gw]
-    call pm_print_ip
+    call pm_print_hex32
     call pm_newline
+
+.poll_recv:
+    call eth_recv
+    jc   .no_rx
+
+    ; got a frame
+    mov  esi, pm_str_ndbg_rx
+    mov  bl, 0x0A
+    call pm_puts
+    movzx eax, dx
+    call pm_print_hex32
+    mov  esi, pm_str_ndbg_rxdata
+    mov  bl, 0x07
+    call pm_puts
+    push esi
+    push ecx
+    cmp  ecx, 40
+    jle  .dump_ok
+    mov  ecx, 40
+.dump_ok:
+    movzx eax, byte [esi]
+    call pm_print_hex8
+    mov  al, ' '
+    mov  bl, 0x07
+    call pm_putc
+    inc  esi
+    loop .dump_ok
+    pop  ecx
+    pop  esi
+    call pm_newline
+    jmp  .rx_done
+
+.no_rx:
+    dec  dword [ndbg_poll]
+    jnz  .poll
+
+    ; timeout - final register dump
+    call pm_newline
+    mov  esi, pm_str_ndbg_rdh
+    mov  bl, 0x0C
+    call pm_puts
+    mov  edx, E1000_RDH
+    call e1000_mmio_read
+    call pm_print_hex32
+    mov  esi, pm_str_ndbg_rdt
+    mov  bl, 0x0C
+    call pm_puts
+    mov  edx, E1000_RDT
+    call e1000_mmio_read
+    call pm_print_hex32
+    mov  esi, pm_str_ndbg_tail
+    mov  bl, 0x0C
+    call pm_puts
+    mov  eax, [e1000_rx_tail]
+    call pm_print_hex32
+    call pm_newline
+
+    ; TDH after wait (did NIC consume TX desc?)
+    mov  esi, pm_str_ndbg_tdhfinal
+    mov  bl, 0x0C
+    call pm_puts
+    mov  edx, E1000_TDH
+    call e1000_mmio_read
+    call pm_print_hex32
+    call pm_newline
+
+    mov  esi, pm_str_ndbg_norx
+    mov  bl, 0x0C
+    call pm_puts
     jmp  .done
 
 .send_err:
@@ -472,11 +785,7 @@ cmd_netdbg:
     call pm_puts
     jmp  .done
 
-.no_nic:
-    mov  esi, pm_str_ndbg_nodev
-    mov  bl, 0x0C
-    call pm_puts
-
+.rx_done:
 .done:
     call pm_newline
     pop  edi
@@ -487,13 +796,47 @@ cmd_netdbg:
     pop  eax
     ret
 
-ndbg_poll:      dd 0
-ndbg_rdh_start: dd 0
+ndbg_poll:       dd 0
+ndbg_rdh_last:   dd 0
+ndbg_tdh_before: dd 0
+ndbg_tdt_before: dd 0
+ndbg_tdh_after:  dd 0
+ndbg_tdt_after:  dd 0
 
-pm_str_ndbg_ourip:    db ' Our IP  : ', 0
-pm_str_ndbg_gw:       db ' Gateway : ', 0
-pm_str_ndbg_sending:  db ' Pinging gateway...', 13, 10, 0
-pm_str_ndbg_reply:    db ' Reply from ', 0
-pm_str_ndbg_timeout:  db ' Request timed out.', 13, 10, 0
-pm_str_ndbg_senderr:  db ' Send failed.', 13, 10, 0
-pm_str_ndbg_nodev:    db ' No NIC detected.', 13, 10, 0
+pm_str_ndbg_hdr1:    db ' [1] NIC Hardware State', 13, 10, 0
+pm_str_ndbg_hdr2:    db ' [2] Network Config', 13, 10, 0
+pm_str_ndbg_hdr3:    db ' [3] TX Test', 13, 10, 0
+pm_str_ndbg_hdr4:    db ' [4] RX Wait', 13, 10, 0
+pm_str_ndbg_ready:   db '  e1000_ready : ', 0
+pm_str_ndbg_pcicmd:  db '  PCI Command : ', 0
+pm_str_ndbg_bar0:    db '  BAR0        : ', 0
+pm_str_ndbg_ctrl:    db '  CTRL        : ', 0
+pm_str_ndbg_status:  db '  STATUS      : ', 0
+pm_str_ndbg_rctlv:   db '  RCTL        : ', 0
+pm_str_ndbg_tctlv:   db '  TCTL        : ', 0
+pm_str_ndbg_ral0:    db '  RAL0/RAH0   : ', 0
+pm_str_ndbg_slash:   db ' / ', 0
+pm_str_ndbg_tdhdt:   db '  TDH/TDT     : ', 0
+pm_str_ndbg_rdhdtreg: db '  RDH/RDT/sw  : ', 0
+pm_str_ndbg_swtail:  db ' / sw=', 0
+pm_str_ndbg_txd0:    db '  TXdesc[0].s : ', 0
+pm_str_ndbg_rxd0:    db '  RXdesc[0].s : ', 0
+pm_str_ndbg_ourip:   db '  Our IP      : ', 0
+pm_str_ndbg_gw:      db '  Gateway     : ', 0
+pm_str_ndbg_gwmac:   db '  GW MAC      : ', 0
+pm_str_ndbg_nomac:   db '  No GW MAC in ARP cache!', 13, 10, 0
+pm_str_ndbg_rxd_pre:  db '  RXdesc[0] pre : ', 0
+pm_str_ndbg_rxd_post: db '  RXdesc[0] post: ', 0
+pm_str_ndbg_txbefore: db '  TDH/TDT pre : ', 0
+pm_str_ndbg_txafter:  db '  TDH/TDT post: ', 0
+pm_str_ndbg_txhdr:   db '  TX IP hdr   : ', 0
+pm_str_ndbg_waiting: db '  Polling...', 13, 10, 0
+pm_str_ndbg_rdhchg:  db '  RDH moved-> ', 0
+pm_str_ndbg_rx:      db '  RX etype=0x', 0
+pm_str_ndbg_rxdata:  db ' : ', 0
+pm_str_ndbg_rdh:     db '  RDH=', 0
+pm_str_ndbg_rdt:     db '  RDT=', 0
+pm_str_ndbg_tail:    db '  sw=', 0
+pm_str_ndbg_tdhfinal: db '  TDH final   : ', 0
+pm_str_ndbg_norx:    db '  Nothing received.', 13, 10, 0
+pm_str_ndbg_senderr: db '  Send failed (CF=1 from icmp_send_echo)', 13, 10, 0

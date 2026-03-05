@@ -231,78 +231,23 @@ e1000_init:
     cmp  dword [pci_e1000_bar0], 0
     je   .no_nic
 
-    ; ── 1b. Enable Bus Master — raw port I/O, hardcoded for QEMU e1000 ───
-    ; QEMU always puts the e1000 at bus=0 dev=3 func=0.
-    ; PCI config addr = 0x80000000 | (bus<<16) | (dev<<11) | (func<<8) | reg
-    ;                 = 0x80000000 | (0<<16)   | (3<<11)   | (0<<8)    | 0x04
-    ;                 = 0x80001804
-    push eax
-    push edx
-    mov  eax, 0x80001804       ; address: bus=0, dev=3, func=0, reg=CMD(0x04)
-    mov  dx,  0xCF8
-    out  dx,  eax              ; select config register
-    mov  dx,  0xCFC
-    in   eax, dx               ; read current CMD
-    or   eax, (1 << 2) | (1 << 1)  ; set Bus Master + Memory Space
-    mov  dx,  0xCF8
-    mov  ebx, 0x80001804
-    xchg eax, ebx
-    out  dx,  eax              ; re-select (in clobbered eax)
-    xchg eax, ebx
-    mov  dx,  0xCFC
-    out  dx,  eax              ; write back
-    pop  edx
-    pop  eax
+    ; ── 2. Read MAC before reset (reset clears RAL0) ──────────────────
+    call e1000_read_mac
 
-    ; ── 2. Save MAC from RAL0/RAH0 BEFORE reset (QEMU loads it at power-on) ─
-    mov  edx, E1000_RAL0
-    call e1000_mmio_read
-    mov  [e1000_saved_ral], eax
-    mov  edx, E1000_RAH0
-    call e1000_mmio_read
-    mov  [e1000_saved_rah], eax
 
-    ; ── 3. Reset the NIC ─────────────────────────────────────────────────
+    ; ── 2. Reset the NIC ─────────────────────────────────────────────────
     mov  edx, E1000_CTRL
     call e1000_mmio_read
     or   eax, E1000_CTRL_RST
     mov  edx, E1000_CTRL
     call e1000_mmio_write
 
-    ; wait for RST bit to self-clear
-    mov  ecx, 1000000
+    ; wait for reset to clear
+    mov  ecx, 200000
 .rst_wait:
-    mov  edx, E1000_CTRL
-    call e1000_mmio_read
-    test eax, E1000_CTRL_RST
-    jz   .rst_done
     loop .rst_wait
-.rst_done:
 
-    ; ── 4. Restore MAC into RAL0/RAH0 immediately after reset ────────────
-    mov  eax, [e1000_saved_ral]
-    mov  edx, E1000_RAL0
-    call e1000_mmio_write
-    mov  eax, [e1000_saved_rah]
-    or   eax, (1 << 31)          ; ensure valid bit is set
-    mov  edx, E1000_RAH0
-    call e1000_mmio_write
-
-    ; also populate e1000_mac buffer from saved values
-    mov  eax, [e1000_saved_ral]
-    mov  [e1000_mac + 0], al
-    shr  eax, 8
-    mov  [e1000_mac + 1], al
-    shr  eax, 8
-    mov  [e1000_mac + 2], al
-    shr  eax, 8
-    mov  [e1000_mac + 3], al
-    mov  eax, [e1000_saved_rah]
-    mov  [e1000_mac + 4], al
-    shr  eax, 8
-    mov  [e1000_mac + 5], al
-
-    ; ── 5. Set link up, auto-speed ───────────────────────────────────────
+    ; ── 3. Set link up, auto-speed ───────────────────────────────────────
     mov  edx, E1000_CTRL
     call e1000_mmio_read
     or   eax, E1000_CTRL_SLU | E1000_CTRL_ASDE
@@ -319,16 +264,22 @@ e1000_init:
     loop .link_wait
 .link_up:
 
-    ; ── 4. Read MAC address (BAR0 now valid, NIC stable after reset) ──────
-    ; MAC already saved pre-reset and restored; e1000_mac already populated.
-    ; call e1000_read_mac  ← skipped: would read zeros post-reset
+    ; (MAC already read before reset — see step 2 above)
 
     ; ── 5. Disable all interrupts ────────────────────────────────────────
     mov  eax, 0xFFFFFFFF
     mov  edx, E1000_IMC
     call e1000_mmio_write
 
-    ; RAL0/RAH0 already restored in step 4 above — skip re-program
+    ; ── 6. Re-program Receive Address register with our MAC ──────────────
+    mov  eax, [e1000_mac]
+    mov  edx, E1000_RAL0
+    call e1000_mmio_write
+
+    movzx eax, word [e1000_mac + 4]
+    or   eax, (1 << 31)
+    mov  edx, E1000_RAH0
+    call e1000_mmio_write
 
     ; ── 7. Clear multicast table ─────────────────────────────────────────
     xor  eax, eax
@@ -424,7 +375,7 @@ e1000_init:
     mov  [edi], eax          ; buffer addr low
     mov  dword [edi + 4], 0  ; buffer addr high
     mov  word  [edi + 8], 0  ; length (filled by NIC)
-    mov  byte  [edi + 12], 0 ; status byte at offset 12 in RX descriptor
+    mov  byte  [edi + 12], 0 ; status (NIC sets DD when packet arrives)
     inc  ecx
     jmp  .rx_init
 .rx_init_done:
@@ -457,7 +408,7 @@ e1000_init:
     call e1000_mmio_write
 
     ; ── 11. Enable receiver ──────────────────────────────────────────────
-    mov  eax, E1000_RCTL_EN | E1000_RCTL_BAM
+    mov  eax, E1000_RCTL_EN | E1000_RCTL_BAM | E1000_RCTL_SECRC
     mov  edx, E1000_RCTL
     call e1000_mmio_write
 
@@ -673,8 +624,13 @@ e1000_recv:
     imul eax, 16
     add  esi, eax
 
-    ; Poll DD bit (bit 0 of STATUS byte - offset +11 in legacy RX descriptor)
-    ; Layout: [0]buf_lo [4]buf_hi [8]length [10]csum [11]status [12]errors
+    ; Yield to QEMU event loop via an MMIO read before checking DD.
+    ; On WHPX/TCG, SLIRP reply delivery happens during a VM exit.
+    ; Without an MMIO read here, QEMU may not get a chance to write the descriptor.
+    mov  edx, E1000_RDH
+    call e1000_mmio_read     ; forces VM exit → QEMU can deliver pending RX
+
+    ; Poll DD bit (bit 0 of status byte at offset +12)
     test byte [esi + 12], E1000_RXD_STAT_DD
     jz   .no_packet          ; NIC hasn't written here yet
 
@@ -694,8 +650,13 @@ e1000_recv:
     pop  ecx
     pop  esi
 
-    ; Clear status byte so we don't re-process this descriptor
+    ; Clear DD so we don't re-process this descriptor
     mov  byte [esi + 12], 0
+
+    ; Give this descriptor slot back to the NIC via RDT = current index
+    mov  eax, ebx
+    mov  edx, E1000_RDT
+    call e1000_mmio_write
 
     ; Advance our tail to the next descriptor
     inc  ebx
@@ -704,12 +665,6 @@ e1000_recv:
     xor  ebx, ebx
 .no_wrap_rx:
     mov  [e1000_rx_tail], ebx
-
-    ; Give the consumed slot back to the NIC: write new tail to RDT
-    ; (the slot we just read is now free; NIC owns everything up to new tail)
-    mov  eax, ebx
-    mov  edx, E1000_RDT
-    call e1000_mmio_write
 
     clc
     jmp  .done
@@ -969,8 +924,6 @@ e1000_ready:      db 0
 e1000_mac:        times 6 db 0
 e1000_rx_tail:    dd 0
 e1000_tx_len_tmp: dw 0
-e1000_saved_ral:  dd 0
-e1000_saved_rah:  dd 0
 
 pm_str_ifc_hdr:   db ' eth0 - Intel 82540EM (e1000)', 13, 10, 0
 pm_str_ifc_mac:   db '   MAC address : ', 0

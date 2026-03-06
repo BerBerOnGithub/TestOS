@@ -115,6 +115,16 @@ pm_exec:
     je   .ping
 
     mov  esi, pm_input_buf
+    mov  edi, pm_str_pfx_udpsend
+    call pm_startswith
+    je   .udpsend
+
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_pfx_udplisten
+    call pm_startswith
+    je   .udplisten
+
+    mov  esi, pm_input_buf
     mov  edi, pm_str_cmd_netdbg
     call pm_strcmp
     je   .netdbg
@@ -151,6 +161,10 @@ pm_exec:
     jmp  .done
 .ping:      call cmd_ping
     jmp  .done
+.udpsend:    call cmd_udpsend
+    jmp  .done
+.udplisten:  call cmd_udplisten
+    jmp  .done
 .netdbg:    call cmd_netdbg
     jmp  .done
 .exit:  call pm_cmd_exit       ; does not return to here
@@ -170,3 +184,4 @@ pm_exec:
 %include "pm/pm_commands.asm"
 %include "pm/pm_drivers.asm"
 %include "pm/pm_data.asm"
+%include "pm/net/udp.asm"

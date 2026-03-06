@@ -75,8 +75,6 @@ pm_str_cmd_nicdbg:   db 'nicdbg', 0
 pm_str_cmd_arp:      db 'arp', 0
 pm_str_pfx_arping:   db 'arping ', 0
 pm_str_pfx_ping:     db 'ping ', 0
-pm_str_pfx_udpsend:   db 'udpsend ', 0
-pm_str_pfx_udplisten: db 'udplisten ', 0
 pm_str_cmd_netdbg:   db 'netdbg', 0
 
 ; Error strings

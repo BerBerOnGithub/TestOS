@@ -139,6 +139,7 @@ eth_recv:
 
     mov  edi, eth_rx_buf
     call e1000_recv          ; EDI=buf → ECX=total_len, CF
+
     jc   .no_packet
     test ecx, ecx
     jz   .no_packet

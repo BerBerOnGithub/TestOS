@@ -709,34 +709,69 @@ cmd_netdbg:
     call pm_print_hex32
     call pm_newline
 
-.poll_recv:
-    call eth_recv
-    jc   .no_rx
-
-    ; got a frame
-    mov  esi, pm_str_ndbg_rx
-    mov  bl, 0x0A
-    call pm_puts
-    movzx eax, dx
-    call pm_print_hex32
-    mov  esi, pm_str_ndbg_rxdata
-    mov  bl, 0x07
-    call pm_puts
-    push esi
+    ; ← ADD HERE: dump all 16 bytes of RX desc[0]
     push ecx
-    cmp  ecx, 40
-    jle  .dump_ok
-    mov  ecx, 40
-.dump_ok:
-    movzx eax, byte [esi]
+    push edi
+    mov  edi, E1000_RX_DESC_BASE
+    mov  ecx, 16
+.dump_rdh:
+    movzx eax, byte [edi]
     call pm_print_hex8
     mov  al, ' '
     mov  bl, 0x07
     call pm_putc
-    inc  esi
-    loop .dump_ok
+    inc  edi
+    loop .dump_rdh
+    call pm_newline
+    pop  edi
     pop  ecx
-    pop  esi
+
+.poll_recv:
+    call eth_recv
+    jc   .no_rx
+
+    ; dispatch by ethertype
+    cmp  dx, ETHERTYPE_ARP
+    jne  .not_arp
+    call arp_process
+    jmp  .poll
+.not_arp:
+    cmp  dx, ETHERTYPE_IPV4
+    jne  .poll
+
+   ;it's IPv4 — parse the IP header ourselves (packet already in ESI/ECX)
+    cmp  ecx, IP_HDR_LEN
+    jl   .poll
+    cmp  byte [esi], 0x45    ; version 4, no options
+    jne  .poll
+    cmp  byte [esi + 9], IP_PROTO_ICMP
+    jne  .poll
+
+    ; extract src IP
+    mov  eax, [esi + 12]
+    bswap eax
+    mov  [ip_rx_src], eax
+
+    ; get payload length from IP total length field
+    mov  bx, [esi + 2]
+    xchg bl, bh
+    movzx ecx, bx
+    sub  ecx, IP_HDR_LEN
+
+    ; advance ESI past IP header to ICMP payload
+    add  esi, IP_HDR_LEN
+
+    ; call icmp_process with ESI=icmp payload, ECX=len, EAX=src_ip
+    mov  eax, [ip_rx_src]
+    call icmp_process
+
+    cmp  byte [icmp_got_reply], 1
+    jne  .poll
+
+    ; got our ping reply!
+    mov  esi, pm_str_ndbg_rx
+    mov  bl, 0x0A
+    call pm_puts
     call pm_newline
     jmp  .rx_done
 
@@ -832,7 +867,7 @@ pm_str_ndbg_txafter:  db '  TDH/TDT post: ', 0
 pm_str_ndbg_txhdr:   db '  TX IP hdr   : ', 0
 pm_str_ndbg_waiting: db '  Polling...', 13, 10, 0
 pm_str_ndbg_rdhchg:  db '  RDH moved-> ', 0
-pm_str_ndbg_rx:      db '  RX etype=0x', 0
+pm_str_ndbg_rx:  db ' Got ICMP reply!', 13, 10, 0
 pm_str_ndbg_rxdata:  db ' : ', 0
 pm_str_ndbg_rdh:     db '  RDH=', 0
 pm_str_ndbg_rdt:     db '  RDT=', 0

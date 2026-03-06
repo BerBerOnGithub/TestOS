@@ -216,8 +216,9 @@ ip_recv:
     push edx
     push edi
 
-    mov  edi, ip_rx_buf
-    call eth_recv            ; EDI=buf → ESI=payload, ECX=total_len, DX=etype
+    ; eth_recv returns: ESI=payload ptr (eth_rx_buf+14), ECX=payload len, DX=etype
+    ; It does NOT use EDI — do not pass ip_rx_buf here.
+    call eth_recv
     jc   .no_packet
 
     cmp  dx, ETHERTYPE_IPV4
@@ -226,7 +227,7 @@ ip_recv:
     cmp  ecx, IP_HDR_LEN
     jl   .no_packet
 
-    ; validate version/IHL = 0x45 (no options supported)
+    ; validate version/IHL = 0x45 (IPv4, no options)
     cmp  byte [esi], 0x45
     jne  .no_packet
 
@@ -239,7 +240,7 @@ ip_recv:
     bswap eax
     mov  [ip_rx_dst], eax
 
-    ; verify packet is addressed to us (or broadcast)
+    ; verify packet is addressed to us or broadcast
     mov  eax, [ip_rx_dst]
     cmp  eax, [net_our_ip]
     je   .mine
@@ -248,7 +249,7 @@ ip_recv:
     jmp  .no_packet
 
 .mine:
-    ; protocol
+    ; protocol byte
     mov  al, [esi + 9]
     mov  [ip_rx_proto], al
 
@@ -258,7 +259,7 @@ ip_recv:
     movzx ecx, bx
     sub  ecx, IP_HDR_LEN     ; payload length
 
-    ; advance ESI past IP header
+    ; advance ESI past IP header to payload
     add  esi, IP_HDR_LEN
 
     clc
@@ -271,7 +272,6 @@ ip_recv:
     pop  edx
     pop  ebx
     ret
-
 ; ---------------------------------------------------------------------------
 ; Data
 ; ---------------------------------------------------------------------------

@@ -234,7 +234,6 @@ e1000_init:
     ; ── 2. Read MAC before reset (reset clears RAL0) ──────────────────
     call e1000_read_mac
 
-
     ; ── 2. Reset the NIC ─────────────────────────────────────────────────
     mov  edx, E1000_CTRL
     call e1000_mmio_read
@@ -254,17 +253,49 @@ e1000_init:
     mov  edx, E1000_CTRL
     call e1000_mmio_write
 
-    ; poll STATUS.LU (bit 1) — wait for link up (up to 200000 iterations)
+    ; poll STATUS.LU (bit 1) — wait for link up
     mov  ecx, 200000
 .link_wait:
     mov  edx, E1000_STATUS
     call e1000_mmio_read
-    test eax, (1 << 1)       ; LU bit
+    test eax, (1 << 1)
     jnz  .link_up
     loop .link_wait
 .link_up:
 
-    ; (MAC already read before reset — see step 2 above)
+; ── 1b. Enable Bus Master ─────────────────────────────────────────────
+    push eax
+    push edx
+    mov  eax, 0x80001804
+    mov  dx,  0xCF8
+    out  dx,  eax
+    mov  dx,  0xCFC
+    in   eax, dx
+    or   eax, (1 << 2) | (1 << 1)
+    push eax
+    mov  eax, 0x80001804
+    mov  dx,  0xCF8
+    out  dx,  eax
+    pop  eax
+    mov  dx,  0xCFC
+    out  dx,  eax
+    pop  edx
+    pop  eax
+
+    ; ── DEBUG: read back PCI Command register and print it ───────────────
+    push eax
+    push edx
+    push ebx
+    mov  eax, 0x80001804
+    mov  dx,  0xCF8
+    out  dx,  eax
+    mov  dx,  0xCFC
+    in   eax, dx             ; read back
+    call pm_print_hex32      ; should show 00000107 if Bus Master is set
+    call pm_newline
+    pop  ebx
+    pop  edx
+    pop  eax
 
     ; ── 5. Disable all interrupts ────────────────────────────────────────
     mov  eax, 0xFFFFFFFF
@@ -291,34 +322,11 @@ e1000_init:
     loop .mta_clear
 
     ; ── 8. Setup TX descriptor ring ──────────────────────────────────────
-    ; Zero the descriptor memory
     mov  edi, E1000_TX_DESC_BASE
     mov  ecx, (E1000_NUM_TX_DESC * 16) / 4
     xor  eax, eax
     rep  stosd
 
-    ; Point each descriptor at its buffer
-    mov  ecx, 0
-.tx_desc_init:
-    cmp  ecx, E1000_NUM_TX_DESC
-    jge  .tx_desc_done
-    mov  eax, ecx
-    imul eax, E1000_BUF_SIZE
-    add  eax, E1000_TX_BUF_BASE
-    mov  edi, E1000_TX_DESC_BASE
-    imul ecx, 16             ; 16 bytes per descriptor
-    add  edi, ecx
-    imul ecx, -1             ; restore ECX
-    add  ecx, 0              ; no-op, ECX already divided
-    ; store buffer address at [edi]
-    ; (re-derive ECX as loop counter)
-    inc  ecx
-    mov  [edi - 16], eax     ; addr low
-    mov  dword [edi - 12], 0 ; addr high
-    jmp  .tx_desc_init
-
-.tx_desc_done:
-    ; Actually do it properly with a clean loop
     xor  ecx, ecx
 .tx_init2:
     cmp  ecx, E1000_NUM_TX_DESC
@@ -326,20 +334,19 @@ e1000_init:
     mov  edi, E1000_TX_DESC_BASE
     mov  eax, ecx
     imul eax, 16
-    add  edi, eax            ; EDI = descriptor address
+    add  edi, eax
     mov  eax, ecx
     imul eax, E1000_BUF_SIZE
     add  eax, E1000_TX_BUF_BASE
-    mov  [edi], eax          ; buffer addr low
-    mov  dword [edi + 4], 0  ; buffer addr high
-    mov  word  [edi + 8], 0  ; length (filled at send time)
-    mov  byte  [edi + 11], 0 ; command
-    mov  byte  [edi + 12], E1000_TXD_STAT_DD  ; mark as done (free)
+    mov  [edi], eax
+    mov  dword [edi + 4], 0
+    mov  word  [edi + 8], 0
+    mov  byte  [edi + 11], 0
+    mov  byte  [edi + 12], E1000_TXD_STAT_DD
     inc  ecx
     jmp  .tx_init2
 .tx_init2_done:
 
-    ; Tell NIC where the TX ring is
     mov  eax, E1000_TX_DESC_BASE
     mov  edx, E1000_TDBAL
     call e1000_mmio_write
@@ -372,10 +379,10 @@ e1000_init:
     mov  eax, ecx
     imul eax, E1000_BUF_SIZE
     add  eax, E1000_RX_BUF_BASE
-    mov  [edi], eax          ; buffer addr low
-    mov  dword [edi + 4], 0  ; buffer addr high
-    mov  word  [edi + 8], 0  ; length (filled by NIC)
-    mov  byte  [edi + 12], 0 ; status (NIC sets DD when packet arrives)
+    mov  [edi], eax
+    mov  dword [edi + 4], 0
+    mov  word  [edi + 8], 0
+    mov  byte  [edi + 12], 0
     inc  ecx
     jmp  .rx_init
 .rx_init_done:
@@ -390,19 +397,18 @@ e1000_init:
     mov  edx, E1000_RDLEN
     call e1000_mmio_write
     xor  eax, eax
-    mov  edx, E1000_RDH              ; head = 0
+    mov  edx, E1000_RDH
     call e1000_mmio_write
-    mov  eax, E1000_NUM_RX_DESC - 1  ; tail = 15: give NIC all 16 descriptors
+    mov  eax, E1000_NUM_RX_DESC - 1
     mov  edx, E1000_RDT
     call e1000_mmio_write
-    mov  dword [e1000_rx_tail], 0    ; software tail: first slot NIC will fill
+    mov  dword [e1000_rx_tail], 0
 
     ; ── 10. Enable transmitter ───────────────────────────────────────────
     mov  eax, E1000_TCTL_EN | E1000_TCTL_PSP | E1000_TCTL_CT | E1000_TCTL_COLD
     mov  edx, E1000_TCTL
     call e1000_mmio_write
 
-    ; TX inter-packet gap (recommended value from datasheet)
     mov  eax, 0x00602006
     mov  edx, E1000_TIPG
     call e1000_mmio_write
@@ -424,7 +430,6 @@ e1000_init:
     pop  ecx
     pop  eax
     ret
-
 ; ---------------------------------------------------------------------------
 ; e1000_send - transmit one Ethernet frame
 ; In:  ESI = pointer to frame data
@@ -518,6 +523,29 @@ e1000_send:
 ; e1000_send_frame - cleaner wrapper that saves length before movsb
 ; In:  ESI = frame pointer, ECX = length
 ; ---------------------------------------------------------------------------
+; ===========================================================================
+; PATCH FOR: pm/net/e1000.asm
+; Replace the entire e1000_send_frame function with this debug version.
+; It prints single characters to screen at each key checkpoint:
+;
+;   'S' = function entered
+;   'R' = e1000_ready check passed
+;   'D' = descriptor DD check passed (slot is free)
+;   'C' = frame copy done, descriptor filled
+;   'W' = TDT write done — NIC has been kicked
+;   'E' = error exit (ready=0 or DD not set)
+;
+; After running ping/netdbg, the letters on screen tell you exactly
+; how far execution gets.
+; ===========================================================================
+
+; ===========================================================================
+; PATCH FOR: pm/net/e1000.asm
+; Replace e1000_send_frame with this version.
+; After SRDCW it now also prints:
+;   " len=XXXX buf=XXXXXXXX" so we can verify the descriptor contents.
+; ===========================================================================
+
 e1000_send_frame:
     push eax
     push ebx
@@ -526,26 +554,49 @@ e1000_send_frame:
     push esi
     push edi
 
+    ; checkpoint S
+    push eax
+    push ebx
+    mov  al, 'S'
+    mov  bl, 0x0E
+    call pm_putc
+    pop  ebx
+    pop  eax
+
     cmp  byte [e1000_ready], 0
     je   .err
 
-    ; save length
+    ; checkpoint R
+    push eax
+    push ebx
+    mov  al, 'R'
+    mov  bl, 0x0A
+    call pm_putc
+    pop  ebx
+    pop  eax
+
     mov  [e1000_tx_len_tmp], cx
 
-    ; get TX tail
     mov  edx, E1000_TDT
     call e1000_mmio_read
     mov  ebx, eax
 
-    ; descriptor address
     mov  edi, E1000_TX_DESC_BASE
     mov  eax, ebx
     imul eax, 16
     add  edi, eax
 
-    ; check free
     test byte [edi + 12], E1000_TXD_STAT_DD
     jz   .err
+
+    ; checkpoint D
+    push eax
+    push ebx
+    mov  al, 'D'
+    mov  bl, 0x0B
+    call pm_putc
+    pop  ebx
+    pop  eax
 
     ; TX buffer address
     mov  eax, ebx
@@ -569,6 +620,38 @@ e1000_send_frame:
     mov  byte [edi + 13], 0
     mov  word [edi + 14], 0
 
+    ; checkpoint C + print len and buf address
+    push eax
+    push ebx
+    mov  al, 'C'
+    mov  bl, 0x0D
+    call pm_putc
+
+    ; print " L="
+    mov  al, 'L'
+    mov  bl, 0x07
+    call pm_putc
+    mov  al, '='
+    call pm_putc
+
+    ; print length (word at [edi+8])
+    movzx eax, word [edi + 8]
+    call pm_print_hex32
+
+    ; print " B="
+    mov  al, 'B'
+    call pm_putc
+    mov  al, '='
+    call pm_putc
+
+    ; print buffer address (dword at [edi+0])
+    mov  eax, [edi]
+    call pm_print_hex32
+
+    call pm_newline
+    pop  ebx
+    pop  eax
+
     ; bump tail
     inc  ebx
     cmp  ebx, E1000_NUM_TX_DESC
@@ -579,10 +662,28 @@ e1000_send_frame:
     mov  edx, E1000_TDT
     call e1000_mmio_write
 
+    ; checkpoint W
+    push eax
+    push ebx
+    mov  al, 'W'
+    mov  bl, 0x0F
+    call pm_putc
+    pop  ebx
+    pop  eax
+
     clc
     jmp  .sfDone
+
 .err:
+    push eax
+    push ebx
+    mov  al, 'E'
+    mov  bl, 0x0C
+    call pm_putc
+    pop  ebx
+    pop  eax
     stc
+
 .sfDone:
     pop  edi
     pop  esi
@@ -591,7 +692,6 @@ e1000_send_frame:
     pop  ebx
     pop  eax
     ret
-
 ; ---------------------------------------------------------------------------
 ; e1000_recv - check for received packet, copy to buffer
 ; In:  EDI = destination buffer pointer
@@ -599,10 +699,10 @@ e1000_send_frame:
 ;      CF=1 if NIC not ready
 ;
 ; Ownership model:
-;   e1000_rx_tail is the index of the NEXT descriptor the NIC will write into.
-;   We poll its DD bit. When set, a packet has landed there.
-;   After consuming it we clear DD, write that slot's index to RDT
-;   (giving the descriptor back to the NIC), then advance e1000_rx_tail.
+;   e1000_rx_tail tracks the slot we expect the NIC to have filled next.
+;   We poll [slot+11] DD bit.  When set, a packet has landed there.
+;   We copy it out, clear DD, give that same slot index back to the NIC
+;   via RDT, then advance e1000_rx_tail to the next slot.
 ; ---------------------------------------------------------------------------
 e1000_recv:
     push eax
@@ -624,20 +724,15 @@ e1000_recv:
     imul eax, 16
     add  esi, eax
 
-    ; Yield to QEMU event loop via an MMIO read before checking DD.
-    ; On WHPX/TCG, SLIRP reply delivery happens during a VM exit.
-    ; Without an MMIO read here, QEMU may not get a chance to write the descriptor.
-    mov  edx, E1000_RDH
-    call e1000_mmio_read     ; forces VM exit → QEMU can deliver pending RX
-
-    ; Poll DD bit (bit 0 of status byte at offset +12)
+    ; Poll DD bit (bit 0) of STATUS byte at offset +11
+    ; (NOT +12 — that is the errors byte)
     test byte [esi + 12], E1000_RXD_STAT_DD
     jz   .no_packet          ; NIC hasn't written here yet
 
-    ; Get received length
+    ; Get received length from offset +8
     movzx ecx, word [esi + 8]
     test ecx, ecx
-    jz   .no_packet          ; zero-length frame, skip
+    jz   .no_packet          ; zero-length, skip
 
     ; Copy from RX buffer to caller's EDI
     push esi
@@ -650,21 +745,26 @@ e1000_recv:
     pop  ecx
     pop  esi
 
-    ; Clear DD so we don't re-process this descriptor
+    ; Clear STATUS byte at +11 so we don't re-process this slot
     mov  byte [esi + 12], 0
 
-    ; Give this descriptor slot back to the NIC via RDT = current index
-    mov  eax, ebx
-    mov  edx, E1000_RDT
-    call e1000_mmio_write
+    ; Save the slot index we just consumed — this goes back to RDT
+    mov  edx, ebx            ; EDX = consumed slot index
 
-    ; Advance our tail to the next descriptor
+    ; Advance software tail to next slot
     inc  ebx
     cmp  ebx, E1000_NUM_RX_DESC
     jl   .no_wrap_rx
     xor  ebx, ebx
 .no_wrap_rx:
     mov  [e1000_rx_tail], ebx
+
+    ; Give the consumed slot (EDX) back to the NIC via RDT.
+    ; The NIC owns all slots from RDH up to (and including) RDT.
+    ; Writing the slot we just freed tells the NIC it can reuse it.
+    mov  eax, edx
+    mov  edx, E1000_RDT
+    call e1000_mmio_write
 
     clc
     jmp  .done

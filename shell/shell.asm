@@ -110,6 +110,10 @@ shell_exec:
     call strcmp_buf
     je   cmd_settime
 
+    mov  si, str_cmd_ls
+    call strcmp_buf
+    je   cmd_ls
+
     ; ── Prefix-matched commands ──────────────────────────────────────────
     mov  si, str_pfx_echo
     call startswith
@@ -126,6 +130,10 @@ shell_exec:
     mov  si, str_pfx_calc
     call startswith
     je   cmd_calc
+
+    mov  si, str_pfx_run
+    call startswith
+    je   cmd_run
 
     ; ── Unknown command ──────────────────────────────────────────────────
     mov  si, str_err_pre

@@ -53,7 +53,6 @@ kernel_main:
     int  0x1A
     mov  [boot_ticks_hi], cx
     mov  [boot_ticks_lo], dx
-
     ; Initialise real-mode drivers
     call drv_rm_init
 
@@ -71,18 +70,28 @@ kernel_main:
     hlt
 
 ; ---------------------------------------------------------------------------
+; Syscall trampoline — must land at offset 0x100 from ORG 0x8000 = 0x8100
+; Pad from here (after kernel_main's ~30 bytes) up to offset 0x100
+; ---------------------------------------------------------------------------
+times 0x100 - ($ - $$) db 0x90
+syscall_entry:
+    jmp  syscall_handler
+
+; ---------------------------------------------------------------------------
 ; 16-bit components  [BITS 16]
 ; ---------------------------------------------------------------------------
 %include "core/screen.asm"
 %include "core/string.asm"
 %include "core/keyboard.asm"
 %include "core/utils.asm"
+%include "core/syscall.asm"
 %include "drivers/rm_drivers.asm"
 %include "shell/shell.asm"
 %include "commands/cmd_basic.asm"
 %include "commands/cmd_system.asm"
 %include "commands/cmd_tools.asm"
 %include "commands/cmd_fun.asm"
+%include "commands/cmd_fs.asm"
 %include "commands/data.asm"
 
 ; ---------------------------------------------------------------------------

@@ -544,6 +544,9 @@ cmd_pm:
     out  0x92, al
 
     cli
+    pop  si
+    pop  bx
+    pop  ax
     mov  [rm_sp_save], sp
     lgdt [gdt_descriptor]
     mov  eax, cr0

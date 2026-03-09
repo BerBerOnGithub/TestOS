@@ -1,62 +1,44 @@
 ; ===========================================================================
-; boot.asm - ClaudeOS Stage 1 Bootloader
+; boot.asm - ClaudeOS Stage 1 Bootloader (MBR)
 ;
-; Assembled with: nasm -f bin -o boot.bin boot.asm
-;
-; Fits in the 512-byte MBR. Loads the kernel (32 sectors = 16KB)
-; from sector 2 of the disk into memory at 0x0000:0x8000, then
-; jumps to it. Loads 40 sectors (20KB) to give room for growth.
+; Fits in 512 bytes. Only job: load Stage 2 (sectors 2-3) into
+; 0x0000:0x7E00 and jump to it. Stage 2 handles loading the kernel.
 ; ===========================================================================
 
 [BITS 16]
 [ORG 0x7C00]
 
-; ---------------------------------------------------------------------------
-; Entry point
-; ---------------------------------------------------------------------------
 boot_start:
     cli
     xor  ax, ax
     mov  ds, ax
     mov  es, ax
     mov  ss, ax
-    mov  sp, 0x7C00         ; stack grows down from 0x7C00
+    mov  sp, 0x7C00
     sti
 
-    mov  [boot_drive], dl   ; BIOS passes boot drive number in DL
+    mov  [boot_drive], dl
 
-    ; Print "loading" message via BIOS teletype
-    mov  si, msg_loading
-    call bios_puts
-
-    ; -----------------------------------------------------------------------
-    ; Load kernel from disk using BIOS Int 13h (CHS mode)
-    ;   Cylinder 0, Head 0, Sector 2  →  32 sectors (16 KB)
-    ;   Destination: 0x0000:0x8000
-    ; -----------------------------------------------------------------------
-    mov  ah, 0x02           ; function: read sectors
-    mov  al, 64             ; sector count
-    mov  ch, 0              ; cylinder 0
-    mov  cl, 2              ; sector 2  (BIOS sectors are 1-indexed)
-    mov  dh, 0              ; head 0
-    mov  dl, [boot_drive]   ; drive
-    mov  bx, 0x8000         ; ES:BX destination  (ES=0 from above)
-    int  0x13
-    jc   .disk_error
-
-    ; Pass boot drive number to kernel in DL, then hand control over
+    ; Load Stage 2: 2 sectors from sector 2 → 0x0000:0x7E00
+    mov  ah, 0x02
+    mov  al, 2               ; 2 sectors = 1KB, plenty for stage 2
+    mov  ch, 0               ; cylinder 0
+    mov  cl, 2               ; sector 2
+    mov  dh, 0               ; head 0
     mov  dl, [boot_drive]
-    jmp  0x0000:0x8000      ; far jump to kernel entry point
+    mov  bx, 0x7E00          ; ES:BX = 0x0000:0x7E00
+    int  0x13
+    jc   .error
 
-.disk_error:
+    mov  dl, [boot_drive]
+    jmp  0x0000:0x7E00
+
+.error:
     mov  si, msg_error
     call bios_puts
     cli
     hlt
 
-; ---------------------------------------------------------------------------
-; bios_puts  –  print null-terminated string at DS:SI via BIOS teletype
-; ---------------------------------------------------------------------------
 bios_puts:
     lodsb
     or   al, al
@@ -68,15 +50,8 @@ bios_puts:
 .done:
     ret
 
-; ---------------------------------------------------------------------------
-; Data
-; ---------------------------------------------------------------------------
-boot_drive:   db 0
-msg_loading:  db 'ClaudeOS v1.0 - Booting...', 13, 10, 0
-msg_error:    db 13, 10, 'FATAL: Disk read error. System halted.', 13, 10, 0
+boot_drive: db 0
+msg_error:  db 'Stage 1 error!', 13, 10, 0
 
-; ---------------------------------------------------------------------------
-; Pad to 510 bytes and append boot signature
-; ---------------------------------------------------------------------------
 times 510-($-$$) db 0
 dw 0xAA55

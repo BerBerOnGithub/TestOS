@@ -15,13 +15,18 @@ pm_entry:
     mov  gs, ax
     mov  ss, ax
     mov  esp, 0x7BF0
-
-    ; Initialise PM drivers (screen, keyboard, PIT, speaker)
     call pm_drv_init
+    call gfx_init
+    call term_init
+    call mouse_init
 
-    mov  esi, pm_banner
-    mov  bl, 0x0B
-    call pm_puts
+.loop:
+    call term_run
+    ; draw mouse_x as a colour bar on row 0 (visible debug)
+    mov  eax, [mouse_x]
+    mov  edi, [gfx_fb_base]
+    mov  byte [edi + eax], 0x04   ; red dot at row 0, column=mouse_x
+    jmp  .loop
 
 pm_shell_loop:
     mov  esi, pm_prompt
@@ -31,6 +36,122 @@ pm_shell_loop:
     call pm_exec
     jmp  pm_shell_loop
 
+pm_gfx_test:
+    push eax
+    push ebx
+    push ecx
+    push edx
+    push esi
+
+    ; ── Desktop background (teal = colour 0x03 in VGA default palette) ───
+    mov  eax, 0              ; x=0
+    mov  ebx, 0              ; y=0
+    mov  ecx, 640            ; w=640
+    mov  edx, 480            ; h=480
+    mov  esi, 0x03           ; teal
+    call fb_fill_rect
+
+    mov  eax, 320
+    mov  ebx, 240
+    mov  cl, 0x0F
+    call fb_draw_pixel       ; white dot in centre
+
+    ; ── Window body: white (0x0F), at (80, 60), 480x340 ──────────────────
+    mov  eax, 80
+    mov  ebx, 60
+    mov  ecx, 480
+    mov  edx, 340
+    mov  esi, 0x0F           ; bright white
+    call fb_fill_rect
+
+    ; ── Title bar: dark blue (0x01), at (80, 60), 480x18 ─────────────────
+    mov  eax, 80
+    mov  ebx, 60
+    mov  ecx, 480
+    mov  edx, 18
+    mov  esi, 0x01           ; dark blue
+    call fb_fill_rect
+
+    ; ── Window border outline: dark grey (0x08) ───────────────────────────
+    mov  eax, 80
+    mov  ebx, 60
+    mov  ecx, 480
+    mov  edx, 340
+    mov  esi, 0x08           ; dark grey
+    call fb_draw_rect_outline
+
+    ; ── Highlight: bright white top+left edges (bevel effect) ────────────
+    ; top edge bright
+    mov  eax, 80
+    mov  ebx, 60
+    mov  edx, 480
+    mov  cl,  0x0F
+    call fb_hline
+    ; left edge bright
+    mov  eax, 80
+    mov  ebx, 60
+    mov  edx, 340
+    mov  cl,  0x0F
+    call fb_vline
+
+    ; ── Shadow: dark grey right+bottom edges ─────────────────────────────
+    ; bottom edge shadow
+    mov  eax, 80
+    mov  ebx, 399            ; 60 + 340 - 1
+    mov  edx, 480
+    mov  cl,  0x07
+    call fb_hline
+    ; right edge shadow
+    mov  eax, 559            ; 80 + 480 - 1
+    mov  ebx, 60
+    mov  edx, 340
+    mov  cl,  0x07
+    call fb_vline
+
+    ; ── Close button placeholder: red square in top-right of title bar ────
+    mov  eax, 540            ; 80+480-20 = 540
+    mov  ebx, 62
+    mov  ecx, 16
+    mov  edx, 14
+    mov  esi, 0x04           ; red
+    call fb_fill_rect
+
+    ; ── Corner pixel test: bright magenta at screen corners ───────────────
+    mov  eax, 0
+    mov  ebx, 0
+    mov  cl,  0x0D
+    call fb_draw_pixel
+
+    mov  eax, 639
+    mov  ebx, 0
+    mov  cl,  0x0D
+    call fb_draw_pixel
+
+    mov  eax, 0
+    mov  ebx, 479
+    mov  cl,  0x0D
+    call fb_draw_pixel
+
+    mov  eax, 639
+    mov  ebx, 479
+    mov  cl,  0x0D
+    call fb_draw_pixel
+
+    ; Draw title bar text
+    mov  esi, pm_str_title
+    mov  ebx, 88             ; x = 8px inside title bar left edge
+    mov  ecx, 65             ; y = centred in 18px title bar (60+5)
+    mov  dl,  0x0F           ; fg = bright white
+    mov  dh,  0x01           ; bg = dark blue (same as title bar)
+    call fb_draw_string
+
+.done:
+    pop  esi
+    pop  edx
+    pop  ecx
+    pop  ebx
+    pop  eax
+    ret
 ; ---------------------------------------------------------------------------
 ; pm_exec - dispatch command in pm_input_buf
 ; ---------------------------------------------------------------------------
@@ -170,3 +291,5 @@ pm_exec:
 %include "pm/pm_commands.asm"
 %include "pm/pm_drivers.asm"
 %include "pm/pm_data.asm"
+%include "pm/mouse.asm"
+%include "pm/terminal.asm"

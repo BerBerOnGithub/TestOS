@@ -38,7 +38,6 @@ FORTUNE_COUNT equ 10
 
 ; ---------------------------------------------------------------------------
 ; Kernel entry point
-; ---------------------------------------------------------------------------
 kernel_main:
     cli
     xor  ax, ax
@@ -53,21 +52,46 @@ kernel_main:
     int  0x1A
     mov  [boot_ticks_hi], cx
     mov  [boot_ticks_lo], dx
-    ; Initialise real-mode drivers
-    call drv_rm_init
 
-    call screen_clear
-    call show_banner
-    call show_motd
+    ; Probe and set VESA framebuffer (must happen in real mode)
+    call vbe_init
 
-.shell:
-    call shell_prompt
-    call shell_readline
-    call shell_exec
-    jmp  .shell
+    ; Boot straight to PM — no RM shell
+    call boot_to_pm
 
+    ; Should never return, but halt just in case
     cli
     hlt
+
+; ---------------------------------------------------------------------------
+; boot_to_pm
+; Switches to 32-bit protected mode unconditionally.
+; Mirrors cmd_pm in cmd_system.asm but without the user prompt.
+; ---------------------------------------------------------------------------
+boot_to_pm:
+    ; Enable A20 line
+    mov  ah, 0x86
+    mov  cx, 0x0007
+    mov  dx, 0xA120
+    int  0x15
+
+    in   al, 0x92
+    or   al, 0x02
+    and  al, 0xFE
+    out  0x92, al
+
+    cli
+
+    ; Save real-mode stack pointer so pm_exit can restore it
+    mov  [rm_sp_save], sp
+
+    lgdt [gdt_descriptor]
+
+    mov  eax, cr0
+    or   eax, 1
+    mov  cr0, eax
+
+    jmp  0x08:pm_entry      ; far jump flushes prefetch, loads CS=0x08
 
 ; ---------------------------------------------------------------------------
 ; Syscall trampoline — must land at offset 0x100 from ORG 0x8000 = 0x8100
@@ -84,6 +108,7 @@ syscall_entry:
 %include "core/string.asm"
 %include "core/keyboard.asm"
 %include "core/utils.asm"
+%include "core/vbe.asm"
 %include "core/syscall.asm"
 %include "drivers/rm_drivers.asm"
 %include "shell/shell.asm"
@@ -98,3 +123,5 @@ syscall_entry:
 ; 32-bit components  [BITS 32]  (included last — never reached by 16-bit flow)
 ; ---------------------------------------------------------------------------
 %include "pm/pm_shell.asm"
+%include "pm/gfx.asm"
+%include "pm/font.asm"

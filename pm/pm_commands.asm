@@ -287,7 +287,7 @@ pm_exit_realmode:
 
     ; ── Step 12: far jump back into the 16-bit shell loop ────────────────
     db  0xEA                 ; far jump opcode (16-bit form)
-    dw  kernel_main.shell    ; 16-bit offset (already includes 0x8000)
+    dw  kernel_main    ; 16-bit offset (already includes 0x8000)
     dw  0x0000               ; segment
 
 ; Real-mode IDT descriptor: limit=0x03FF (1024 bytes), base=0x00000000

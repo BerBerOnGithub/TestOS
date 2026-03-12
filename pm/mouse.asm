@@ -154,13 +154,28 @@ mouse_poll:
     ret
 
 ; ---------------------------------------------------------------------------
-; cursor_save_bg  — save 8x8 pixels under cursor into cursor_bg[64]
+; cursor_size  —  returns cursor dimension in EAX (12 or 16)
+cursor_size:
+    cmp  byte [cursor_use_bmp], 1
+    jne  .small
+    mov  eax, 16
+    ret
+.small:
+    mov  eax, 12
+    ret
+
+; ---------------------------------------------------------------------------
+; cursor_save_bg  — save pixels under cursor into cursor_bg
+; Size depends on cursor_use_bmp (12 or 16).
 ; ---------------------------------------------------------------------------
 cursor_save_bg:
     pusha
+    call cursor_size
+    mov  [.sz], eax
     xor  esi, esi            ; row
 .srow:
-    cmp  esi, 12
+    mov  eax, [.sz]
+    cmp  esi, eax
     jge  .sdone
 
     mov  eax, [mouse_y]
@@ -174,7 +189,8 @@ cursor_save_bg:
 
     xor  ecx, ecx
 .scol:
-    cmp  ecx, 12
+    mov  edx, [.sz]
+    cmp  ecx, edx
     jge  .snext
     mov  ebx, [mouse_x]
     add  ebx, ecx
@@ -184,7 +200,8 @@ cursor_save_bg:
     push eax
     mov  bl, [eax + ecx]
     mov  eax, esi
-    imul eax, 12
+    mov  edx, [.sz]
+    imul eax, edx
     add  eax, ecx
     mov  [cursor_bg + eax], bl
     pop  eax
@@ -197,12 +214,16 @@ cursor_save_bg:
 .sdone:
     popa
     ret
+.sz: dd 12
 
 cursor_erase:
     pusha
+    call cursor_size
+    mov  [cursor_save_bg.sz], eax   ; reuse the size var
     xor  esi, esi
 .erow:
-    cmp  esi, 12
+    mov  eax, [cursor_save_bg.sz]
+    cmp  esi, eax
     jge  .edone
     mov  eax, [mouse_y]
     add  eax, esi
@@ -215,7 +236,8 @@ cursor_erase:
 
     xor  ecx, ecx
 .ecol:
-    cmp  ecx, 12
+    mov  edx, [cursor_save_bg.sz]
+    cmp  ecx, edx
     jge  .enext
     mov  ebx, [mouse_x]
     add  ebx, ecx
@@ -224,7 +246,8 @@ cursor_erase:
 
     push eax
     mov  eax, esi
-    imul eax, 12
+    mov  edx, [cursor_save_bg.sz]
+    imul eax, edx
     add  eax, ecx
     mov  bl, [cursor_bg + eax]
     pop  eax
@@ -240,26 +263,193 @@ cursor_erase:
     ret
 
 ; ---------------------------------------------------------------------------
-; cursor_draw — save bg then blit 12x12 arrow (black outline + white fill)
+; cursor_load_bmp  —  load cursor pixels from "cursor" file in ClaudeFS
+;
+; Reads a 16x16 8bpp BMP.  On success sets cursor_use_bmp=1 and fills
+; cursor_bmp_pixels[256] with the 16x16 palette-index pixels (top row first).
+; Transparent colour index is stored in cursor_bmp_transp.
+;
+; BMP on-disk layout:
+;   bytes  0-1   'BM'
+;   bytes  2-5   file size
+;   bytes 10-13  pixel data offset
+;   bytes 14-53  BITMAPINFOHEADER (40 bytes)
+;     +0  dword  header size = 40
+;     +4  dword  width
+;     +8  dword  height  (positive = bottom-up)
+;    +28  word   bits per pixel (must be 8)
+;   After header: 256×4 byte palette, then pixel rows (bottom-up)
+; ---------------------------------------------------------------------------
+cursor_load_bmp:
+    push eax
+    push ebx
+    push ecx
+    push edx
+    push esi
+    push edi
+
+    ; ask fs_pm_find for file named "cursor"
+    mov  esi, cursor_bmp_name
+    call fs_pm_find
+    jc   .fail              ; not found
+
+    ; EAX = ptr to BMP data, ECX = file size
+    mov  edi, eax           ; EDI = BMP base
+
+    ; validate BM magic
+    cmp  word [edi], 0x4D42         ; 'BM'
+    jne  .fail
+
+    ; must be 8bpp
+    cmp  word [edi + 14 + 14], 8    ; biPlanes=2 offset from DIB header
+    ; actually biBitCount is at DIB+14 = file offset 28
+    cmp  word [edi + 28], 8
+    jne  .fail
+
+    ; width and height must be 16
+    cmp  dword [edi + 18], 16       ; biWidth
+    jne  .fail
+    ; biHeight may be negative (top-down) — we only handle positive (bottom-up)
+    mov  eax, [edi + 22]            ; biHeight
+    cmp  eax, 16
+    jne  .fail
+
+    ; pixel data offset
+    mov  eax, [edi + 10]            ; bfOffBits
+    add  eax, edi                   ; absolute pointer to pixel rows
+
+    ; BMP rows are bottom-up: row 0 on disk = bottom row of image.
+    ; We want top row first in cursor_bmp_pixels, so read rows in reverse.
+    ; Row i on disk starts at: pixel_base + (15-i)*16
+    mov  ecx, 0             ; destination row (0=top)
+.rowloop:
+    cmp  ecx, 16
+    jge  .loaded
+
+    ; source row = row (15 - ecx) in BMP  = bottom-up
+    mov  edx, 15
+    sub  edx, ecx
+    imul edx, 16            ; byte offset within pixel data
+    add  edx, eax           ; edx = source ptr for this row
+
+    ; destination in cursor_bmp_pixels
+    push eax
+    mov  edi, cursor_bmp_pixels
+    push ecx
+    imul ecx, 16
+    add  edi, ecx           ; edi = destination row ptr
+    pop  ecx
+
+    ; copy 16 bytes
+    push ecx
+    push esi
+    mov  esi, edx
+    mov  ecx, 16
+    rep  movsb
+    pop  esi
+    pop  ecx
+    pop  eax
+
+    inc  ecx
+    jmp  .rowloop
+
+.loaded:
+    ; The transparent colour index is the desktop background colour (0x01 = dark blue).
+    ; Store it so cursor_draw_bmp can skip transparent pixels.
+    mov  byte [cursor_bmp_transp], 0x01
+    mov  byte [cursor_use_bmp],    1
+    jmp  .done
+
+.fail:
+    mov  byte [cursor_use_bmp], 0  ; fall back to built-in arrow
+
+.done:
+    pop  edi
+    pop  esi
+    pop  edx
+    pop  ecx
+    pop  ebx
+    pop  eax
+    ret
+
+; ---------------------------------------------------------------------------
+; cursor_draw — save bg then blit cursor (bitmap if loaded, else arrow)
 ; ---------------------------------------------------------------------------
 cursor_draw:
     call cursor_save_bg
-    pusha
 
-    ; pass 1: black outline
+    cmp  byte [cursor_use_bmp], 1
+    je   cursor_draw_bmp
+
+    ; ── built-in 12×12 two-pass arrow ────────────────────────────────────
+    pusha
     mov  dword [cursor_draw_colour], 0x00
     mov  esi, cursor_outline
     call cursor_blit
-
-    ; pass 2: white fill
     mov  dword [cursor_draw_colour], 0x0F
     mov  esi, cursor_fill
     call cursor_blit
-
     popa
     ret
 
-; cursor_blit: ESI = 12-byte bitmap, colour = [cursor_draw_colour]
+; ---------------------------------------------------------------------------
+; cursor_draw_bmp  —  blit 16×16 indexed pixels from cursor_bmp_pixels
+; Skips pixels whose index == cursor_bmp_transp
+; ---------------------------------------------------------------------------
+cursor_draw_bmp:
+    pusha
+    xor  esi, esi               ; row index (0 = top)
+.brow:
+    cmp  esi, 16
+    jge  .bdone
+
+    mov  eax, [mouse_y]
+    add  eax, esi
+    cmp  eax, 479
+    jg   .bnext
+
+    mov  edx, [gfx_fb_pitch]
+    mul  edx
+    add  eax, [gfx_fb_base]
+    add  eax, [mouse_x]         ; eax = &fb[mouse_y+row][mouse_x]
+
+    xor  ecx, ecx               ; col
+.bcol:
+    cmp  ecx, 16
+    jge  .bnext
+
+    mov  edx, [mouse_x]
+    add  edx, ecx
+    cmp  edx, 639
+    jg   .bnext
+
+    ; get pixel index from cursor_bmp_pixels
+    push eax
+    mov  edi, esi
+    imul edi, 16
+    add  edi, ecx
+    movzx ebx, byte [cursor_bmp_pixels + edi]
+    pop  eax
+
+    ; skip transparent
+    cmp  bl, [cursor_bmp_transp]
+    je   .bskip
+
+    mov  [eax + ecx], bl        ; write palette index directly to framebuffer
+
+.bskip:
+    inc  ecx
+    jmp  .bcol
+
+.bnext:
+    inc  esi
+    jmp  .brow
+
+.bdone:
+    popa
+    ret
+
+; cursor_blit: ESI = 12-byte bitmask, colour = [cursor_draw_colour]
 cursor_blit:
     pusha
     xor  edi, edi            ; row
@@ -324,7 +514,14 @@ mouse_pkt:          db 0, 0, 0
                     db 0
 cursor_draw_colour: dd 0
 
-cursor_bg:  times 144 db 0   ; 12x12 saved background
+cursor_bg:  times 256 db 0   ; up to 16×16 saved background
+
+; ── BMP cursor data ──────────────────────────────────────────────────────────
+cursor_use_bmp:      db 0           ; 1 = use bitmap cursor, 0 = use arrow
+cursor_bmp_transp:   db 0x01        ; palette index treated as transparent
+                     dw 0           ; align
+cursor_bmp_pixels:   times 256 db 0 ; 16×16 palette-index pixel data (top-row first)
+cursor_bmp_name:     db 'cursor', 0 ; ClaudeFS filename to search
 
 ; 12x12 arrow cursor
 ; Row by row, MSB=leftmost, 8 bits used (cols 0-7), rows 0-11

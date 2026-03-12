@@ -2,61 +2,97 @@
 
 A real bootable x86 operating system written in pure assembly. Runs directly
 on the CPU — no OS, no runtime, no libraries. Real-mode shell with full BIOS
-access, plus a 32-bit protected-mode shell with direct hardware drivers and
-a working TCP/IP network stack (in progress).
+access, plus a 32-bit protected-mode graphical desktop with a window manager,
+mouse support, and direct hardware drivers.
 
 ---
 
-## Step 1 — Install NASM
+## Requirements
 
-1. Go to: https://nasm.us/pub/nasm/releasebuilds/?C=M&O=D
-2. Click the top folder (highest version number)
-3. Download `nasm-X.XX.XX-installer-x64.exe`
-4. Run the installer — tick **"Add to PATH"**
+| Tool   | Get it from                                              |
+|--------|----------------------------------------------------------|
+| NASM   | https://nasm.us/pub/nasm/releasebuilds/?C=M&O=D         |
+| Python | https://www.python.org/downloads/                        |
+| QEMU   | https://www.qemu.org/download/#windows                   |
 
-Verify:
+**First-time Python setup** (one time only):
 ```
-nasm --version
+pip install pycdlib
 ```
 
 ---
 
-## Step 2 — Build
+## Step 1 — Build
 
 ```
 build.bat
 ```
 
-Produces `claudeos.img` — a 1.44 MB bootable floppy image.
+Produces `claudeos.iso`.
 
----
-
-## Step 3 — Run in QEMU
-
-### Basic (no networking)
 ```
 build.bat run
 ```
 
-### With networking (required for `pci`, `ifconfig`, `ping`)
+Builds and launches in QEMU immediately.
+
+---
+
+## Step 2 — Run in QEMU
+
+### Quick launch
+```
+build.bat run
+```
+
+### Full command (copy this into a shortcut or script)
 ```
 qemu-system-x86_64 ^
-  -drive file=claudeos.img,format=raw,if=floppy ^
-  -m 32M ^
+  -cdrom claudeos.iso ^
+  -boot d ^
+  -m 64M ^
+  -cpu Haswell ^
+  -smp 1 ^
+  -vga std ^
+  -rtc base=localtime ^
+  -audiodev id=snd,driver=dsound ^
+  -machine pcspk-audiodev=snd ^
   -nic user,model=e1000 ^
-  -display sdl ^
+  -display sdl,window-close=on ^
+  -name "ClaudeOS" ^
   -no-reboot
 ```
 
-### With networking + packet capture (for debugging)
+| Flag                            | Why                                               |
+|---------------------------------|---------------------------------------------------|
+| `-cdrom claudeos.iso -boot d`   | Boot from ISO                                     |
+| `-m 64M`                        | Enough RAM for framebuffer + wallpaper            |
+| `-cpu Haswell`                  | Spoofs a real Intel Haswell CPU via CPUID         |
+| `-smp 1`                        | Single core (ClaudeOS is single-threaded)         |
+| `-vga std`                      | Standard VGA — required for VBE 640×480 graphics  |
+| `-rtc base=localtime`           | RTC clock shows your real local time              |
+| `-audiodev` + `-machine pcspk` | PC speaker audio (beep commands, boot sounds)     |
+| `-nic user,model=e1000`         | Intel e1000 NIC for networking commands           |
+| `-display sdl,window-close=on` | SDL window with working close button              |
+| `-name "ClaudeOS"`              | Sets the QEMU window title                        |
+| `-no-reboot`                    | Halts instead of rebooting on triple fault        |
+
+> **Linux/macOS audio:** replace `-audiodev id=snd,driver=dsound` with
+> `-audiodev id=snd,driver=pa` (PulseAudio) or `driver=alsa`.
+
+### With packet capture (network debugging)
 ```
 qemu-system-x86_64 ^
-  -drive file=claudeos.img,format=raw,if=floppy ^
-  -m 32M ^
+  -cdrom claudeos.iso -boot d ^
+  -m 64M -cpu Haswell -smp 1 -vga std ^
+  -rtc base=localtime ^
+  -audiodev id=snd,driver=dsound ^
+  -machine pcspk-audiodev=snd ^
   -netdev user,id=n0 ^
   -device e1000,netdev=n0 ^
   -object filter-dump,id=f0,netdev=n0,file=net.pcap ^
-  -display sdl ^
+  -display sdl,window-close=on ^
+  -name "ClaudeOS" ^
   -no-reboot ^
   -d guest_errors,unimp ^
   -D qemu.log
@@ -64,24 +100,15 @@ qemu-system-x86_64 ^
 
 Produces `net.pcap` (open in Wireshark) and `qemu.log` (QEMU error log).
 
-Or add it to `build.bat run` permanently by editing the `qemu-system-x86_64`
-line at the bottom of `build.bat` to match the above.
-
-> **Why `-m 32M`?**  The network stack uses memory above 1MB for TX/RX
-> descriptor rings and packet buffers. The default `-m 4M` is not enough.
-
-> **Why `model=e1000`?**  ClaudeOS implements an Intel 82540EM driver.
-> QEMU's default NIC model must match — `e1000` is the right one.
-
 ---
 
-## Step 4 — Flash to USB (optional)
+## Step 3 — Flash to USB (optional)
 
 > WARNING: This erases the entire USB drive.
 
-**Rufus:** Select `claudeos.img`, choose **"DD Image mode"**, click START.
+**Rufus:** Select `claudeos.iso`, mode will auto-select DD — click START.
 
-**balenaEtcher:** Flash from file → select `claudeos.img` → Flash.
+**balenaEtcher:** Flash from file → select `claudeos.iso` → Flash.
 
 **Boot:** Enable Legacy/CSM mode in BIOS, select USB as boot device.
 
@@ -91,9 +118,7 @@ line at the bottom of `build.bat` to match the above.
 
 | Command              | What it does                              |
 |----------------------|-------------------------------------------|
-| `help`               | Show all commands (2 pages)               |
-| `hello`              | Hello World program                       |
-| `run hello.com`      | Same                                      |
+| `help`               | Show all commands                         |
 | `echo <text>`        | Print text                                |
 | `clear`              | Clear the screen                          |
 | `color [XX]`         | Set shell colour (e.g. `color 5F`)        |
@@ -101,25 +126,32 @@ line at the bottom of `build.bat` to match the above.
 | `beep`               | Sound the PC speaker                      |
 | `fortune`            | Random quote                              |
 | `guess`              | Number guessing game (1–100)              |
-| `colors`             | Show all 16 cölöpűre swatches               |
+| `colors`             | Show all 16 colour swatches               |
 | `ascii`              | ASCII table (32–126)                      |
 | `sys`                | System snapshot (date/time/uptime/memory) |
 | `date`               | Show RTC date                             |
 | `time`               | Show RTC time                             |
 | `setdate`            | Set RTC date                              |
 | `settime`            | Set RTC time                              |
-| `probe`              | Verify you are in real mode               |
+| `probe`              | Verify real mode                          |
 | `drivers`            | Show loaded real-mode drivers             |
 | `reboot`             | Reboot the machine                        |
 | `halt`               | Halt the CPU                              |
-| `pm`                 | Switch to 32-bit protected mode           |
+| `pm`                 | Switch to 32-bit protected mode + desktop |
 
 ---
 
-## Protected-Mode Shell Commands
+## Protected-Mode Desktop
 
-Type `pm` in the real-mode shell (confirm with `Y`) to enter protected mode.
-Type `exit` to return to the real-mode shell.
+Type `pm` in the real-mode shell to enter the graphical desktop.
+
+- **Mouse** — PS/2 mouse, full cursor support
+- **Terminal** — type commands in the terminal window
+- **Icons** — click Terminal / Clock / Files on the left sidebar
+- **Windows** — drag title bars to move, click ✕ to close
+- **Taskbar** — click buttons to switch between open windows
+
+### Terminal Commands (PM)
 
 | Command              | What it does                              |
 |----------------------|-------------------------------------------|
@@ -128,33 +160,50 @@ Type `exit` to return to the real-mode shell.
 | `clear`              | Clear screen                              |
 | `echo <text>`        | Print text                                |
 | `calc <n> <op> <n>`  | 32-bit signed calculator                  |
-| `probe`              | Write/read above 1MB to confirm 32-bit PM |
+| `probe`              | Confirm 32-bit protected mode             |
 | `drivers`            | Show loaded PM drivers                    |
 | `pci`                | Enumerate all PCI devices                 |
 | `ifconfig`           | Show NIC MAC address and link status      |
+| `arp`                | Show ARP cache                            |
+| `arping <ip>`        | Send ARP request                          |
+| `ping <ip>`          | Send ICMP echo                            |
+| `clock`              | Open clock window                         |
+| `files`              | Open file browser                         |
 | `exit`               | Return to real-mode shell                 |
+
+---
+
+## Wallpaper
+
+Drop a file named `wallpaper.bmp` into the `apps/` folder before building.
+
+**Requirements:**
+- Format: BMP, 8-bit indexed (256 colour)
+- Size: exactly 640×480 pixels
+- Palette: standard 256-colour VGA palette
+
+Any image editor works — GIMP, Photoshop, Paint.NET. Export as
+"256 colour BMP" or "8-bit indexed BMP".
 
 ---
 
 ## Driver Architecture
 
-ClaudeOS separates drivers by mode. On mode switch, the outgoing drivers
-are shut down and the incoming drivers are initialised.
-
-**Real-mode drivers** (`drivers/rm_drivers.asm`):
+**Real-mode drivers:**
 
 | Driver   | Interface         | Notes                        |
 |----------|-------------------|------------------------------|
 | Screen   | BIOS INT 10h      | VGA text mode 3 (80×25)      |
-| Keyboard | BIOS INT 16h      | Buffered input                |
-| RTC      | BIOS INT 1Ah      | Date/time read and write      |
+| Keyboard | BIOS INT 16h      | Buffered input               |
+| RTC      | BIOS INT 1Ah      | Date/time read and write     |
 | Speaker  | PIT ch.2 + 0x61   | Beep                         |
 
-**Protected-mode drivers** (`pm/pm_drivers.asm`):
+**Protected-mode drivers:**
 
 | Driver   | Interface         | Notes                        |
 |----------|-------------------|------------------------------|
-| Screen   | Direct 0xB8000    | CRT controller cursor        |
+| VBE GFX  | VESA BIOS + MMIO  | 640×480 8bpp framebuffer     |
+| Mouse    | PS/2 port 0x60    | 3-button, BMP cursor         |
 | Keyboard | Direct 0x60/0x64  | Scan-code translation        |
 | PIT      | 0x40–0x43         | 100 Hz tick, ms delay        |
 | Speaker  | PIT ch.2 + 0x61   | Beep (no BIOS)               |
@@ -163,17 +212,17 @@ are shut down and the incoming drivers are initialised.
 
 ---
 
-## Network Stack Progress
+## Network Stack
 
-| Layer     | File                  | Status      |
-|-----------|-----------------------|-------------|
-| PCI       | `pm/net/pci.asm`      | ✅ Done     |
-| e1000 NIC | `pm/net/e1000.asm`    | ✅ Done     |
-| Ethernet  | `pm/net/eth.asm`      | ✅ Done     |
-| ARP       | `pm/net/arp.asm`      | ✅ Done     |
-| IP        | `pm/net/ip.asm`       | ✅ Done     |
-| ICMP/ping | `pm/net/icmp.asm`     | ✅ Done     |
-| UDP       | `pm/net/udp.asm`      | 🔜 Planned  |
+| Layer     | Status      |
+|-----------|-------------|
+| PCI       | ✅ Done     |
+| e1000 NIC | ✅ Done     |
+| Ethernet  | ✅ Done     |
+| ARP       | ✅ Done     |
+| IP        | ✅ Done     |
+| ICMP/ping | ✅ Done     |
+| UDP       | 🔜 Planned  |
 
 ---
 
@@ -182,61 +231,52 @@ are shut down and the incoming drivers are initialised.
 ```
 claudeos/
 ├── build.bat                   Windows build + run script
-├── Makefile                    Linux/macOS alternative
+├── Makefile                    Linux/macOS build script
+├── mkfs.py                     Filesystem packer
+├── mkiso.py                    Pure Python ISO builder
 ├── README.md                   This file
 ├── boot.asm                    512-byte MBR bootloader
+├── stage2.asm                  Stage 2 loader (LBA, El Torito)
 ├── kernel.asm                  Kernel entry point + includes
 │
+├── apps/                       Files packed into ClaudeFS
+│   ├── cursor.bmp              Mouse cursor sprite
+│   ├── icon_term.bmp           Terminal desktop icon
+│   ├── icon_clock.bmp          Clock desktop icon
+│   ├── icon_files.bmp          Files desktop icon
+│   └── wallpaper.bmp           Desktop wallpaper (optional)
+│
 ├── core/                       Real-mode hardware abstractions
-│   ├── screen.asm              BIOS VGA output, putc_color, scroll
-│   ├── keyboard.asm            BIOS keyboard input, readline
-│   ├── string.asm              Print int/hex/BCD, strcmp, startswith
-│   └── utils.asm               Parse int/hex, divmod32, rand
-│
-├── drivers/
-│   └── rm_drivers.asm          Real-mode driver registry + cmd_drivers
-│
-├── shell/
-│   └── shell.asm               Prompt, readline dispatcher
-│
-├── commands/
-│   ├── cmd_basic.asm           help, clear, echo, hello, reboot, halt
-│   ├── cmd_system.asm          date, time, sys, setdate, settime, pm
-│   ├── cmd_tools.asm           calc, color, beep
-│   ├── cmd_fun.asm             fortune, guess, ascii, colors
-│   └── data.asm                All strings, variables, GDT
+├── drivers/                    Real-mode driver registry
+├── shell/                      Real-mode shell
+├── commands/                   Real-mode commands
 │
 └── pm/                         32-bit protected mode
-    ├── pm_shell.asm            PM entry point, shell loop, dispatcher
-    ├── pm_screen.asm           Direct VGA driver
-    ├── pm_keyboard.asm         Direct PS/2 driver
-    ├── pm_string.asm           32-bit string/number utilities
-    ├── pm_commands.asm         PM shell commands
-    ├── pm_drivers.asm          PM driver registry
-    ├── pm_data.asm             PM strings and variables
-    └── net/
-        ├── pci.asm             PCI bus enumerator (0xCF8/0xCFC)
-        └── e1000.asm           Intel 82540EM NIC driver
+    ├── pm_shell.asm            PM entry, main loop
+    ├── wm.asm                  Window manager
+    ├── icons.asm               Desktop icons
+    ├── terminal.asm            Terminal emulator
+    ├── mouse.asm               PS/2 mouse + cursor
+    ├── gfx.asm                 Framebuffer primitives
+    ├── font.asm                8×8 bitmap font renderer
+    └── net/                    Network stack
 ```
 
 ---
 
 ## How It Works
 
-The BIOS loads the MBR (`boot.asm`) at `0x7C00`. The bootloader reads 40
-sectors (20 KB) of kernel from disk into `0x8000` using INT 13h, then jumps
-there.
+The BIOS loads `boot.asm` (512 bytes) at `0x7C00`. It loads `stage2.asm`
+which uses INT 13h AH=0x42 (LBA extended read) to load the kernel and
+ClaudeFS filesystem into memory.
 
-The kernel initialises real-mode drivers, draws the banner, and enters a
-read-eval-print loop using BIOS interrupts for all I/O.
+The kernel initialises real-mode drivers and enters a command shell using
+BIOS interrupts for all I/O.
 
-Typing `pm` shuts down the BIOS drivers, loads the GDT, sets `CR0.PE=1`,
-and far-jumps to `pm_entry` at selector `0x08`. The PM shell then
-initialises its own drivers — including PCI enumeration and the e1000 NIC —
-and runs its own command loop using direct hardware access only.
+Typing `pm` switches to 32-bit protected mode: GDT loaded, `CR0.PE=1`,
+far jump to `pm_entry`. VBE graphics are set up (640×480 8bpp), PS/2 mouse
+initialised, and the graphical desktop starts.
 
-Typing `exit` in PM reverses the process: PM drivers shut down, `CR0.PE` is
-cleared, the real-mode IDT is restored, and control returns to the 16-bit
-shell loop.
+Typing `exit` in the PM terminal reverses everything back to real mode.
 
-No C. No libraries. No OS. Just x86 assembly, direct hardware, and the GDT.
+No C. No libraries. No OS. Just x86 assembly and direct hardware.

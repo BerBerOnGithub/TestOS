@@ -201,17 +201,45 @@ icmp_process:
 icmp_poll:
     push eax
     push ecx
+    push edx
     push esi
 
-    call ip_recv             ; CF=1 nothing; CF=0: ESI=payload,ECX=len,AL=proto
+    call eth_recv            ; CF=1 nothing; CF=0: ESI=payload, ECX=len, DX=ethertype
     jc   .done
-    cmp  al, IP_PROTO_ICMP
+
+    cmp  dx, ETHERTYPE_ARP
+    jne  .not_arp
+    call arp_process         ; drain ARP packets (QEMU sends these on boot)
+    jmp  .done
+
+.not_arp:
+    cmp  dx, ETHERTYPE_IPV4
     jne  .done
+
+    ; parse IPv4 header inline
+    cmp  ecx, IP_HDR_LEN
+    jl   .done
+    cmp  byte [esi], 0x45
+    jne  .done
+    cmp  byte [esi + 9], IP_PROTO_ICMP
+    jne  .done
+
+    mov  eax, [esi + 12]
+    bswap eax
+    mov  [ip_rx_src], eax
+
+    mov  bx, [esi + 2]
+    xchg bl, bh
+    movzx ecx, bx
+    sub  ecx, IP_HDR_LEN
+    add  esi, IP_HDR_LEN
+
     mov  eax, [ip_rx_src]
     call icmp_process
 
 .done:
     pop  esi
+    pop  edx
     pop  ecx
     pop  eax
     ret

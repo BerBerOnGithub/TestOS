@@ -285,3 +285,122 @@ font_data:
 
 ; String for title bar test
 pm_str_title: db 'ClaudeOS v2.0', 0
+
+; ---------------------------------------------------------------------------
+; fb_draw_char_scaled
+; In: AL=char, EBX=x, ECX=y, DL=fg, DH=bg (0xFF=transparent), [fcs_scale]=N
+; ---------------------------------------------------------------------------
+fb_draw_char_scaled:
+    pusha
+    movzx eax, al
+    shl   eax, 3
+    add   eax, font_data
+    mov   [fcs_glyph], eax
+    mov   [fcs_x],     ebx
+    mov   [fcs_y],     ecx
+    mov   [fcs_fg],    dl
+    mov   [fcs_bg],    dh
+
+    mov   dword [fcs_row], 0
+.srow:
+    cmp   dword [fcs_row], 8
+    jge   .sdone
+
+    ; get bitmap byte for this row
+    mov   eax, [fcs_glyph]
+    mov   ebx, [fcs_row]
+    movzx eax, byte [eax + ebx]
+    mov   [fcs_bits], al
+
+    mov   dword [fcs_col], 0
+.scol:
+    cmp   dword [fcs_col], 8
+    jge   .snext_row
+
+    ; test bit for this column (bit 7-col)
+    movzx eax, byte [fcs_bits]
+    mov   ecx, 7
+    sub   ecx, [fcs_col]
+    bt    eax, ecx
+
+    jc    .sfg
+    cmp   byte [fcs_bg], 0xFF
+    je    .snext_col
+    movzx esi, byte [fcs_bg]
+    jmp   .sdraw
+.sfg:
+    movzx esi, byte [fcs_fg]
+
+.sdraw:
+    ; block x = fcs_x + col * scale
+    mov   eax, [fcs_col]
+    imul  eax, [fcs_scale]
+    add   eax, [fcs_x]
+    ; block y = fcs_y + row * scale
+    mov   ebx, [fcs_row]
+    imul  ebx, [fcs_scale]
+    add   ebx, [fcs_y]
+    ; width = height = scale
+    mov   ecx, [fcs_scale]
+    mov   edx, [fcs_scale]
+    ; esi already = colour
+    call  fb_fill_rect
+
+.snext_col:
+    inc   dword [fcs_col]
+    jmp   .scol
+
+.snext_row:
+    inc   dword [fcs_row]
+    jmp   .srow
+
+.sdone:
+    popa
+    ret
+
+; fb_draw_string_scaled
+; In: ESI=string, EBX=x, ECX=y, DL=fg, DH=bg, [fcs_scale]=N
+fb_draw_string_scaled:
+    pusha
+    mov  [fcs_sx],  ebx
+    mov  [fcs_sy],  ecx
+    mov  [fcs_sdl], dl
+    mov  [fcs_sdh], dh
+    mov  [fcs_str], esi
+.ssloop:
+    mov  esi, [fcs_str]
+    mov  al,  [esi]
+    test al,  al
+    jz   .ssdone
+    mov  ebx, [fcs_sx]
+    mov  ecx, [fcs_sy]
+    mov  dl,  [fcs_sdl]
+    mov  dh,  [fcs_sdh]
+    call fb_draw_char_scaled
+    ; advance x by 8*scale
+    mov  eax, 8
+    imul eax, [fcs_scale]
+    add  [fcs_sx], eax
+    inc  dword [fcs_str]
+    jmp  .ssloop
+.ssdone:
+    popa
+    ret
+
+; scratch vars for scaled renderer
+fcs_scale: dd 4
+fcs_glyph: dd 0
+fcs_x:     dd 0
+fcs_y:     dd 0
+fcs_fg:    db 0
+fcs_bg:    db 0
+fcs_bits:  db 0
+           db 0
+fcs_row:   dd 0
+fcs_col:   dd 0
+fcs_sx:    dd 0
+fcs_sy:    dd 0
+fcs_str:   dd 0
+fcs_sdl:   db 0
+fcs_sdh:   db 0
+           dw 0

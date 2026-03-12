@@ -76,6 +76,14 @@ pm_str_cmd_arp:      db 'arp', 0
 pm_str_pfx_arping:   db 'arping ', 0
 pm_str_pfx_ping:     db 'ping ', 0
 pm_str_cmd_netdbg:   db 'netdbg', 0
+pm_str_cmd_clock:    db 'clock', 0
+pm_str_cmd_files:    db 'files', 0
+
+; Window manager strings
+pm_str_wm_full:      db 'Max windows open (close one first).', 0
+
+; Mouse button edge-detection
+pm_prev_btn:         db 0
 
 ; Error strings
 pm_str_unknown:
@@ -105,6 +113,8 @@ pm_str_help_text:
     db ' | arp                  | show ARP cache             |', 13, 10
     db ' | arping <ip>          | send ARP request           |', 13, 10
     db ' | ping <ip>            | send ICMP echo (4 packets) |', 13, 10
+    db ' | clock                | open clock window          |', 13, 10
+    db ' | files                | open file browser window   |', 13, 10
     db ' | exit                 | return to real mode        |', 13, 10
     db ' +----------------------+----------------------------+', 13, 10, 10, 0
 
@@ -137,3 +147,5 @@ pm_str_probe_pass:
     db ' Pattern verified! You are in PROTECTED MODE.', 13, 10, 0
 pm_str_probe_fail:
     db ' Pattern mismatch - something is wrong.', 13, 10, 0
+pm_str_novbe:
+    db '[PM] VBE framebuffer unavailable. Text-mode shell active.', 13, 10, 0

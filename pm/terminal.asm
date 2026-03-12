@@ -1,222 +1,311 @@
 ; ===========================================================================
-; pm/terminal.asm - GUI terminal window
-;
-; Draws a window with a title bar and a scrollable text area.
-; Accepts keyboard input, runs pm_exec on Enter.
-;
-; Window geometry (matches pm_gfx_test window):
-;   Window:    x=80, y=60,  w=480, h=340
-;   Title bar: x=80, y=60,  w=480, h=18
-;   Client:    x=88, y=82,  w=464, h=314  (4px padding inside border)
-;
-; Text grid (8x8 font):
-;   Cols = 464 / 8 = 58 chars
-;   Rows = 314 / 8 = 39 rows
-;
-; Public:
-;   term_init       - draw window, reset state
-;   term_run        - blocking: read keys, execute commands, loop forever
-;   term_puts       - print null-terminated string (ESI)
-;   term_putchar    - print char in AL
-;   term_newline    - move to next line, scroll if needed
+; pm/terminal.asm — terminal with backing text buffer, clean register usage
 ; ===========================================================================
-
 [BITS 32]
 
-%define TERM_X       88          ; client area left
-%define TERM_Y       82          ; client area top
-%define TERM_W       464         ; client area width  (pixels)
-%define TERM_H       314         ; client area height (pixels)
-%define TERM_COLS    58          ; chars per row
-%define TERM_ROWS    39          ; visible rows
-%define TERM_FG      0x0A        ; bright green text
-%define TERM_BG      0x00        ; black background
-%define TERM_PROMPT  0x0B        ; cyan prompt
-%define TERM_WIN_X   80
-%define TERM_WIN_Y   60
-%define TERM_WIN_W   480
-%define TERM_WIN_H   340
+%define TERM_BUF_COLS  64
+%define TERM_BUF_ROWS  48
+%define TERM_FG        0x0A
+%define TERM_BG        0x00
+%define TERM_PROMPT_C  0x0B
 
 ; ---------------------------------------------------------------------------
-; term_init  — draw window chrome + clear text area
+; term_init
 ; ---------------------------------------------------------------------------
 term_init:
     pusha
+    mov  edi, term_buf
+    mov  ecx, (TERM_BUF_COLS * TERM_BUF_ROWS * 2 + 3) / 4
+    xor  eax, eax
+    rep  stosd
+    mov  dword [term_col], 0
+    mov  dword [term_row], 0
+    mov  dword [term_input_len], 0
+    call term_update_coords
 
-    ; window body (black client area)
-    mov  eax, TERM_WIN_X
-    mov  ebx, TERM_WIN_Y
-    mov  ecx, TERM_WIN_W
-    mov  edx, TERM_WIN_H
+    ; fill client area black before printing anything
+    mov  eax, [term_cx]
+    mov  ebx, [term_cy]
+    mov  ecx, [term_cw]
+    mov  edx, [term_ch]
     mov  esi, TERM_BG
     call fb_fill_rect
 
-    ; title bar
-    mov  eax, TERM_WIN_X
-    mov  ebx, TERM_WIN_Y
-    mov  ecx, TERM_WIN_W
-    mov  edx, 18
-    mov  esi, 0x01
-    call fb_fill_rect
-
-    ; title text
-    mov  esi, term_str_title
-    mov  ebx, TERM_WIN_X + 8
-    mov  ecx, TERM_WIN_Y + 5
-    mov  dl,  0x0F
-    mov  dh,  0x01
-    call fb_draw_string
-
-    ; close button
-    mov  eax, TERM_WIN_X + TERM_WIN_W - 20
-    mov  ebx, TERM_WIN_Y + 2
-    mov  ecx, 16
-    mov  edx, 14
-    mov  esi, 0x04
-    call fb_fill_rect
-
-    ; border (bevel)
-    mov  eax, TERM_WIN_X
-    mov  ebx, TERM_WIN_Y
-    mov  ecx, TERM_WIN_W
-    mov  edx, TERM_WIN_H
-    mov  esi, 0x07
-    call fb_draw_rect_outline
-
-    ; reset cursor
-    mov  dword [term_col], 0
-    mov  dword [term_row], 0
-
-    ; print welcome banner
     mov  esi, term_str_banner
     call term_puts
     call term_newline
-
-    ; draw input prompt
     call term_draw_prompt
-
     popa
     ret
 
 ; ---------------------------------------------------------------------------
-; term_run  — main input loop (never returns)
+; term_update_coords — recompute pixel coords and row/col counts from wm_table[0]
 ; ---------------------------------------------------------------------------
-term_run:
-.loop:
-    ; poll mouse so cursor still moves
-    call mouse_poll
+term_update_coords:
+    pusha
+    mov  eax, [wm_table + 0]    ; win_x
+    mov  ebx, [wm_table + 4]    ; win_y
+    mov  ecx, [wm_table + 8]    ; win_w
+    mov  edx, [wm_table + 12]   ; win_h
+    add  eax, 2
+    add  ebx, WM_TITLE_H + 1
+    sub  ecx, 4
+    sub  edx, WM_TITLE_H + 3
+    mov  [term_cx], eax
+    mov  [term_cy], ebx
+    mov  [term_cw], ecx
+    mov  [term_ch], edx
+    shr  ecx, 3
+    shr  edx, 3
+    cmp  ecx, TERM_BUF_COLS
+    jbe  .cols_ok
+    mov  ecx, TERM_BUF_COLS
+.cols_ok:
+    cmp  edx, TERM_BUF_ROWS
+    jbe  .rows_ok
+    mov  edx, TERM_BUF_ROWS
+.rows_ok:
+    mov  [term_cols], ecx
+    mov  [term_rows], edx
+    popa
+    ret
 
-    ; non-blocking key check
+; ---------------------------------------------------------------------------
+; term_buf_write — write AL=char DL=colour at [term_row][term_col]
+; ---------------------------------------------------------------------------
+term_buf_write:
+    pusha
+    ; offset = row*TERM_BUF_COLS*2 + col*2
+    mov  ecx, [term_row]
+    imul ecx, TERM_BUF_COLS * 2
+    mov  edi, [term_col]
+    imul edi, 2
+    add  ecx, edi
+    mov  edi, term_buf
+    add  edi, ecx
+    mov  [edi],   al
+    mov  [edi+1], dl
+    popa
+    ret
+
+; ---------------------------------------------------------------------------
+; term_buf_scroll — shift all rows up by 1, zero last row
+; ---------------------------------------------------------------------------
+term_buf_scroll:
+    pusha
+    mov  esi, term_buf + (TERM_BUF_COLS * 2)
+    mov  edi, term_buf
+    mov  ecx, (TERM_BUF_ROWS - 1) * TERM_BUF_COLS * 2 / 4
+    rep  movsd
+    mov  edi, term_buf + ((TERM_BUF_ROWS - 1) * TERM_BUF_COLS * 2)
+    mov  ecx, TERM_BUF_COLS * 2 / 4
+    xor  eax, eax
+    rep  stosd
+    popa
+    ret
+
+; ---------------------------------------------------------------------------
+; term_redraw — recompute coords, fill black, replay buffer to screen
+; ---------------------------------------------------------------------------
+term_redraw:
+    pusha
+    call term_update_coords
+
+    ; fill client area black
+    mov  eax, [term_cx]
+    mov  ebx, [term_cy]
+    mov  ecx, [term_cw]
+    mov  edx, [term_ch]
+    mov  esi, TERM_BG
+    call fb_fill_rect
+
+    ; replay: row = 0..term_rows-1, col = 0..term_cols-1
+    mov  dword [term_ri], 0
+.rrow:
+    mov  eax, [term_rows]
+    cmp  [term_ri], eax
+    jge  .rdone
+    mov  dword [term_ci], 0
+.rcol:
+    mov  eax, [term_cols]
+    cmp  [term_ci], eax
+    jge  .rnext_row
+
+    ; buf address = term_buf + ri*TERM_BUF_COLS*2 + ci*2
+    mov  eax, [term_ri]
+    imul eax, TERM_BUF_COLS * 2
+    mov  ecx, [term_ci]
+    imul ecx, 2
+    add  eax, ecx
+    add  eax, term_buf          ; EAX = cell ptr
+
+    mov  al,  [eax]             ; AL = char  (NOTE: destroys upper EAX — that's ok, buf ptr no longer needed)
+    test al, al
+    jz   .rskip
+
+    mov  [term_tmp_char], al    ; save char to memory — avoids ALL register aliasing
+    mov  dl, [eax+1]            ; wait — eax upper bytes corrupted. use offset calc instead.
+
+    ; EAX upper bytes were trashed by "mov al, [eax]" — recalculate ptr for colour byte
+    mov  eax, [term_ri]
+    imul eax, TERM_BUF_COLS * 2
+    mov  ecx, [term_ci]
+    imul ecx, 2
+    add  eax, ecx
+    add  eax, term_buf + 1      ; +1 = colour byte
+    mov  dl, [eax]              ; DL = colour
+
+    ; pixel x = ci*8 + term_cx
+    mov  ebx, [term_ci]
+    imul ebx, 8
+    add  ebx, [term_cx]
+
+    ; pixel y = ri*8 + term_cy
+    mov  ecx, [term_ri]
+    imul ecx, 8
+    add  ecx, [term_cy]
+
+    mov  al,  [term_tmp_char]
+    mov  dh,  TERM_BG
+    call fb_draw_char
+
+.rskip:
+    inc  dword [term_ci]
+    jmp  .rcol
+.rnext_row:
+    inc  dword [term_ri]
+    jmp  .rrow
+.rdone:
+    popa
+    ret
+
+; ---------------------------------------------------------------------------
+; term_tick — non-blocking key handler
+; ---------------------------------------------------------------------------
+term_tick:
     in   al, 0x64
     test al, 0x01
-    jz   .loop
-    test al, 0x20           ; ignore aux (mouse) bytes
-    jnz  .loop
-
+    jz   .done
+    test al, 0x20
+    jnz  .done
     call pm_getkey
     or   al, al
-    jz   .loop
-
-    cmp  al, 13             ; Enter
+    jz   .done
+    cmp  al, 13
     je   .enter
-    cmp  al, 8              ; Backspace
+    cmp  al, 8
     je   .backspace
+    cmp  al, 32
+    jl   .done
+    cmp  al, 127
+    jge  .done
 
-    ; printable: echo and buffer it
-    cmp  dword [term_input_len], TERM_COLS - 3
-    jge  .loop              ; line full
+    ; check input buffer not full
+    mov  ecx, [term_cols]
+    sub  ecx, 3
+    cmp  [term_input_len], ecx
+    jge  .done
 
-    ; store in input buffer
+    ; store in input buffer and echo
     mov  edi, term_input_buf
     add  edi, [term_input_len]
     mov  [edi], al
     inc  dword [term_input_len]
-
-    ; echo to screen
-    call term_putchar
-    jmp  .loop
+    push edx
+    mov  dl, TERM_FG
+    call term_putchar_col
+    pop  edx
+    jmp  .done
 
 .backspace:
     cmp  dword [term_input_len], 0
-    je   .loop
+    je   .done
     dec  dword [term_input_len]
-    ; erase character: move col back, print space, move back again
     dec  dword [term_col]
+    ; clear buffer cell
     push eax
+    push edx
+    xor  al, al
+    mov  dl, TERM_BG
+    call term_buf_write
+    ; erase on screen
+    mov  ebx, [term_col]
+    imul ebx, 8
+    add  ebx, [term_cx]
+    mov  ecx, [term_row]
+    imul ecx, 8
+    add  ecx, [term_cy]
     mov  al, ' '
-    call term_putchar
-    dec  dword [term_col]
+    mov  dl, TERM_BG
+    mov  dh, TERM_BG
+    call fb_draw_char
+    pop  edx
     pop  eax
-    jmp  .loop
+    jmp  .done
 
 .enter:
     call term_newline
-
-    ; null-terminate input
     mov  edi, term_input_buf
     mov  eax, [term_input_len]
     mov  byte [edi + eax], 0
-
-    ; copy to pm_input_buf and set pm_input_len
     mov  esi, term_input_buf
     mov  edi, pm_input_buf
     mov  ecx, [term_input_len]
     mov  [pm_input_len], ecx
     rep  movsb
     mov  byte [edi], 0
-
-    ; execute
     call pm_exec
-
-    ; reset input buffer
     mov  dword [term_input_len], 0
     mov  dword [term_col], 0
-
-    ; new prompt
     call term_draw_prompt
-    jmp  .loop
-
-; ---------------------------------------------------------------------------
-; term_draw_prompt  — print "> " in cyan at current row
-; ---------------------------------------------------------------------------
-term_draw_prompt:
-    push eax
-    push esi
-    mov  esi, term_str_prompt
-    push edx
-    mov  dl, TERM_PROMPT
-    mov  dh, TERM_BG
-    call term_puts_colour
-    pop  edx
-    pop  esi
-    pop  eax
+.done:
     ret
 
 ; ---------------------------------------------------------------------------
-; term_putchar  AL = char — print at (term_col, term_row), advance col
+; term_draw_prompt
+; ---------------------------------------------------------------------------
+term_draw_prompt:
+    pusha
+    mov  esi, term_str_prompt
+    mov  dl, TERM_PROMPT_C
+    call term_puts_colour
+    popa
+    ret
+
+; ---------------------------------------------------------------------------
+; term_putchar  AL=char (TERM_FG)
 ; ---------------------------------------------------------------------------
 term_putchar:
-    pusha
+    push edx
+    mov  dl, TERM_FG
+    call term_putchar_col
+    pop  edx
+    ret
 
-    cmp  al, 10             ; LF
-    je   .newline
-    cmp  al, 13             ; CR
+; term_putchar_col  AL=char  DL=colour
+term_putchar_col:
+    pusha
+    cmp  al, 10
+    je   .nl
+    cmp  al, 13
     je   .cr
 
-    ; clamp col
-    cmp  dword [term_col], TERM_COLS - 1
+    ; wrap if at end of line
+    mov  ecx, [term_cols]
+    dec  ecx
+    cmp  [term_col], ecx
     jge  .wrap
 
-    ; compute pixel coords
+    ; write to buffer
+    call term_buf_write
+
+    ; draw to screen: EBX=x ECX=y AL=char DL=fg DH=bg
     mov  ebx, [term_col]
     imul ebx, 8
-    add  ebx, TERM_X
-
+    add  ebx, [term_cx]
     mov  ecx, [term_row]
     imul ecx, 8
-    add  ecx, TERM_Y
-
-    mov  dl, TERM_FG
+    add  ecx, [term_cy]
     mov  dh, TERM_BG
     call fb_draw_char
 
@@ -225,39 +314,29 @@ term_putchar:
 
 .wrap:
     call term_newline
-    ; retry
     popa
-    jmp  term_putchar
-
-.newline:
+    jmp  term_putchar_col
+.nl:
     call term_newline
     jmp  .done
-
 .cr:
     mov  dword [term_col], 0
-
 .done:
     popa
     ret
 
 ; ---------------------------------------------------------------------------
-; term_puts  ESI = null-terminated string  (uses TERM_FG/TERM_BG colours)
+; term_puts  ESI=string (TERM_FG)
 ; ---------------------------------------------------------------------------
 term_puts:
-    push eax
     push edx
     mov  dl, TERM_FG
-    mov  dh, TERM_BG
     call term_puts_colour
     pop  edx
-    pop  eax
     ret
 
-; term_puts_colour  ESI = string, DL = fg, DH = bg
-term_puts_colour:
+term_puts_colour:    ; ESI=str  DL=colour
     push eax
-    push ebx
-    push ecx
 .loop:
     mov  al, [esi]
     test al, al
@@ -266,93 +345,91 @@ term_puts_colour:
     je   .nl
     cmp  al, 13
     je   .cr
-
-    ; draw char
-    mov  ebx, [term_col]
-    imul ebx, 8
-    add  ebx, TERM_X
-    mov  ecx, [term_row]
-    imul ecx, 8
-    add  ecx, TERM_Y
-    call fb_draw_char
-    inc  dword [term_col]
-    cmp  dword [term_col], TERM_COLS
-    jl   .next
-    call term_newline
-    jmp  .next
+    call term_putchar_col
+    inc  esi
+    jmp  .loop
 .nl:
     call term_newline
-    jmp  .next
+    inc  esi
+    jmp  .loop
 .cr:
     mov  dword [term_col], 0
-.next:
     inc  esi
     jmp  .loop
 .done:
-    pop  ecx
-    pop  ebx
     pop  eax
     ret
 
 ; ---------------------------------------------------------------------------
-; term_newline  — move to next row, scroll entire text area up one row if needed
+; term_newline — advance row, scroll buffer+pixels when row reaches term_rows
 ; ---------------------------------------------------------------------------
 term_newline:
     pusha
     mov  dword [term_col], 0
     inc  dword [term_row]
-    cmp  dword [term_row], TERM_ROWS
+    mov  eax, [term_rows]
+    cmp  [term_row], eax
     jl   .done
 
-    ; ── Scroll up: copy pixel rows [TERM_Y+8 .. TERM_Y+TERM_H-1]
-    ;               to             [TERM_Y   .. TERM_Y+TERM_H-9]
-    ; i.e. shift everything up by 8 pixels (one text row)
-    mov  ecx, TERM_H - 8    ; number of pixel rows to copy
-    xor  esi, esi            ; pixel row offset (0-based from TERM_Y+8)
+    ; scroll buffer
+    call term_buf_scroll
+
+    ; erase cursor BEFORE pixel scroll so it doesn't get baked into framebuffer
+    call cursor_erase
+
+    ; scroll pixels up 8px: copy rows cy+8..cy+ch-1 to cy..cy+ch-9
+    ; EDX must NOT be used as loop limit across mul — save to memory
+    mov  eax, [term_ch]
+    sub  eax, 8
+    mov  [term_scroll_lim], eax  ; pixel rows to copy
+    xor  esi, esi                ; pixel row offset
 .sloop:
-    cmp  esi, TERM_H - 8
-    jge  .clear_last
+    cmp  esi, [term_scroll_lim]
+    jge  .clrlast
 
-    ; src = fb[TERM_Y + 8 + esi][TERM_X]
-    mov  eax, TERM_Y + 8
+    ; src ptr = fb[cy + 8 + esi][cx]
+    mov  eax, [term_cy]
+    add  eax, 8
     add  eax, esi
-    mov  edx, [gfx_fb_pitch]
-    mul  edx
+    mul  dword [gfx_fb_pitch]   ; EDX trashed here — that's fine now
     add  eax, [gfx_fb_base]
-    add  eax, TERM_X         ; eax = src ptr
+    add  eax, [term_cx]
+    mov  edi, eax               ; save src ptr
 
-    ; dst = fb[TERM_Y + esi][TERM_X]
-    mov  ebx, TERM_Y
-    add  ebx, esi
-    mov  edx, [gfx_fb_pitch]
-    push eax
-    mov  eax, ebx
-    mul  edx
+    ; dst ptr = fb[cy + esi][cx]
+    mov  eax, [term_cy]
+    add  eax, esi
+    mul  dword [gfx_fb_pitch]   ; EDX trashed again — fine
     add  eax, [gfx_fb_base]
-    add  eax, TERM_X         ; eax = dst ptr
-    mov  edi, eax
-    pop  eax                 ; eax = src ptr again
+    add  eax, [term_cx]
 
-    ; copy TERM_W bytes src→dst
     push esi
-    mov  esi, eax
-    mov  ecx, TERM_W
+    mov  esi, edi               ; esi = src
+    mov  edi, eax               ; edi = dst
+    mov  ecx, [term_cw]
     rep  movsb
     pop  esi
 
     inc  esi
     jmp  .sloop
 
-.clear_last:
-    ; blank the last text row
-    mov  eax, TERM_X
-    mov  ebx, TERM_Y + TERM_H - 8
-    mov  ecx, TERM_W
+.clrlast:
+    mov  eax, [term_cx]
+    mov  ebx, [term_cy]
+    add  ebx, [term_ch]
+    sub  ebx, 8
+    mov  ecx, [term_cw]
     mov  edx, 8
     mov  esi, TERM_BG
     call fb_fill_rect
 
-    mov  dword [term_row], TERM_ROWS - 1
+    mov  eax, [term_rows]
+    dec  eax
+    mov  [term_row], eax
+
+    ; redraw cursor at its current position after scroll
+    call cursor_save_bg
+    call cursor_draw
 
 .done:
     popa
@@ -366,6 +443,20 @@ term_row:         dd 0
 term_input_len:   dd 0
 term_input_buf:   times 128 db 0
 
-term_str_title:   db 'Terminal', 0
+term_cx:          dd 2
+term_cy:          dd 20
+term_cw:          dd 476
+term_ch:          dd 318
+term_cols:        dd 58
+term_rows:        dd 39
+
+; loop counter temporaries (avoids register aliasing in replay)
+term_ri:          dd 0
+term_ci:          dd 0
+term_tmp_char:    db 0
+term_scroll_lim:  dd 0
+
+term_buf: times (TERM_BUF_ROWS * TERM_BUF_COLS * 2) db 0
+
 term_str_banner:  db 'ClaudeOS v2.0 - type help for commands', 0
 term_str_prompt:  db '> ', 0

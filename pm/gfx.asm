@@ -259,6 +259,74 @@ fb_draw_rect_outline:
     ret
 
 ; ---------------------------------------------------------------------------
+; fb_xor_rect_outline - XOR a rectangle border onto framebuffer
+; Calling it twice on the same coords restores original pixels exactly.
+; In: EAX=x, EBX=y, ECX=width, EDX=height
+; ---------------------------------------------------------------------------
+fb_xor_rect_outline:
+    push eax
+    push ebx
+    push ecx
+    push edx
+    push edi
+
+    mov  [gfx_rect_x], eax
+    mov  [gfx_rect_y], ebx
+    mov  [gfx_rect_w], ecx
+    mov  [gfx_rect_h], edx
+
+    ; top row
+    mov  eax, [gfx_rect_x]
+    mov  ebx, [gfx_rect_y]
+    call gfx_row_ptr
+    mov  ecx, [gfx_rect_w]
+.top:
+    xor  byte [edi], 0xFF
+    inc  edi
+    loop .top
+
+    ; bottom row
+    mov  eax, [gfx_rect_x]
+    mov  ebx, [gfx_rect_y]
+    add  ebx, [gfx_rect_h]
+    dec  ebx
+    call gfx_row_ptr
+    mov  ecx, [gfx_rect_w]
+.bot:
+    xor  byte [edi], 0xFF
+    inc  edi
+    loop .bot
+
+    ; left col
+    mov  eax, [gfx_rect_x]
+    mov  ebx, [gfx_rect_y]
+    mov  ecx, [gfx_rect_h]
+.left:
+    call gfx_row_ptr
+    xor  byte [edi], 0xFF
+    inc  ebx
+    loop .left
+
+    ; right col
+    mov  eax, [gfx_rect_x]
+    add  eax, [gfx_rect_w]
+    dec  eax
+    mov  ebx, [gfx_rect_y]
+    mov  ecx, [gfx_rect_h]
+.right:
+    call gfx_row_ptr
+    xor  byte [edi], 0xFF
+    inc  ebx
+    loop .right
+
+    pop  edi
+    pop  edx
+    pop  ecx
+    pop  ebx
+    pop  eax
+    ret
+
+; ---------------------------------------------------------------------------
 ; Scratch variables (used internally by rect routines)
 ; ---------------------------------------------------------------------------
 gfx_fb_base:   dd 0

@@ -1,11 +1,13 @@
 @echo off
 REM ===========================================================================
-REM build.bat - ClaudeOS Build Script
+REM build.bat - ClaudeOS Build Script (ISO edition)
+REM Requires: nasm, python + pycdlib (pip install pycdlib)
 REM ===========================================================================
 setlocal
 
 if /i "%~1"=="clean" goto :clean
 
+REM --- find NASM ---
 set "NASM=nasm"
 where nasm >nul 2>&1
 if errorlevel 1 (
@@ -14,73 +16,106 @@ if errorlevel 1 (
     )
 )
 
+REM --- check pycdlib ---
+python -c "import pycdlib" >nul 2>&1
+if errorlevel 1 (
+    echo pycdlib not found - installing...
+    pip install pycdlib
+    if errorlevel 1 ( echo ERROR: pip install pycdlib failed & exit /b 1 )
+)
+
 if not exist build md build
 
-echo [1/5] Assembling stage 1...
+echo [1/6] Assembling stage 1...
 "%NASM%" -f bin -o build\boot.bin boot.asm
 if errorlevel 1 ( echo FAILED: boot.asm & exit /b 1 )
 for %%F in (build\boot.bin) do set S=%%~zF
 if not "%S%"=="512" ( echo ERROR: boot.bin must be 512 bytes & exit /b 1 )
 echo  OK  boot.bin [512 bytes]
 
-echo [2/5] Assembling stage 2...
+echo [2/6] Assembling stage 2...
 "%NASM%" -f bin -o build\stage2.bin stage2.asm
 if errorlevel 1 ( echo FAILED: stage2.asm & exit /b 1 )
 for %%F in (build\stage2.bin) do echo  OK  stage2.bin [%%~zF bytes]
 
-echo [3/5] Assembling kernel...
+echo [3/6] Assembling kernel...
 "%NASM%" -f bin -o build\kernel.bin kernel.asm
 if errorlevel 1 ( echo FAILED: kernel.asm & exit /b 1 )
 for %%F in (build\kernel.bin) do echo  OK  kernel.bin [%%~zF bytes]
 
-echo [4/5] Packing filesystem...
+echo [4/6] Packing filesystem...
 python mkfs.py
 if errorlevel 1 ( echo FAILED: mkfs.py & exit /b 1 )
 
-echo [5/5] Building disk image...
+echo [5/6] Building flat binary image...
+REM Layout aligned to 2048-byte CD sectors (4 x 512-byte sectors):
+REM   512-sector 0:   boot.bin
+REM   512-sector 1:   stage2.bin
+REM   512-sector 4:   kernel.bin  (2048-LBA 1)
+REM   512-sector 204: fs.bin      (2048-LBA 51)
+set KERNEL_SECTOR=4
+set FS_SECTOR=204
+set FS_SECTORS=1600
+set /a FLAT_SECTORS=%FS_SECTOR%+%FS_SECTORS%
+set /a FLAT_BYTES=%FLAT_SECTORS%*512
+set /a FS_OFFSET=%FS_SECTOR%*512
+set /a KERN_OFFSET=%KERNEL_SECTOR%*512
 
-REM Layout (all LBA-based, 512 bytes/sector):
-REM   LBA 0       = boot.bin   (byte 0)
-REM   LBA 1-2     = stage2.bin (byte 512)
-REM   LBA 3..202  = kernel.bin (byte 1536)
-REM   LBA 203+    = fs.bin     (byte 103936)
 set "PS1=%TEMP%\claudeos_build.ps1"
 (
-    echo $img    = New-Object byte[] ^(2880 * 512^)
+    echo $flat   = New-Object byte[] ^(%FLAT_BYTES%^)
     echo $boot   = [IO.File]::ReadAllBytes^('build\boot.bin'^)
     echo $stage2 = [IO.File]::ReadAllBytes^('build\stage2.bin'^)
     echo $kern   = [IO.File]::ReadAllBytes^('build\kernel.bin'^)
     echo $fs     = [IO.File]::ReadAllBytes^('build\fs.bin'^)
-    echo [Array]::Copy^($boot,   0, $img,      0, $boot.Length^)
-    echo [Array]::Copy^($stage2, 0, $img,    512, $stage2.Length^)
-    echo [Array]::Copy^($kern,   0, $img,   1536, $kern.Length^)
-    echo [Array]::Copy^($fs,     0, $img, 103936, $fs.Length^)
-    echo [IO.File]::WriteAllBytes^('claudeos.img', $img^)
-    echo Write-Host ' OK  claudeos.img'
+    echo [Array]::Copy^($boot,   0, $flat,             0, $boot.Length^)
+    echo [Array]::Copy^($stage2, 0, $flat,           512, $stage2.Length^)
+    echo [Array]::Copy^($kern,   0, $flat, %KERN_OFFSET%, $kern.Length^)
+    echo [Array]::Copy^($fs,     0, $flat,   %FS_OFFSET%, $fs.Length^)
+    echo [IO.File]::WriteAllBytes^('build\claudeos_flat.img', $flat^)
+    echo Write-Host ' OK  claudeos_flat.img'
 ) > "%PS1%"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%"
 del "%PS1%" >nul 2>&1
-if errorlevel 1 ( echo FAILED: image creation & exit /b 1 )
+if errorlevel 1 ( echo FAILED: flat image creation & exit /b 1 )
+
+echo [6/6] Building ISO...
+python mkiso.py
+if errorlevel 1 ( echo FAILED: mkiso.py & exit /b 1 )
 
 echo.
 echo ================================
-echo   claudeos.img built!
+echo   claudeos.iso built!
 echo ================================
 
 if /i "%~1"=="run" goto :run
 exit /b 0
 
 :run
-qemu-system-x86_64 -drive file=claudeos.img,format=raw,if=floppy -m 32M -display sdl -no-reboot -nic user,model=e1000
+qemu-system-x86_64 ^
+  -cdrom claudeos.iso ^
+  -boot d ^
+  -m 64M ^
+  -cpu Haswell ^
+  -smp 1 ^
+  -vga std ^
+  -rtc base=localtime ^
+  -audiodev id=snd,driver=dsound ^
+  -machine pcspk-audiodev=snd ^
+  -nic user,model=e1000 ^
+  -display sdl,window-close=on ^
+  -name "ClaudeOS" ^
+  -no-reboot
 exit /b 0
 
 :clean
 echo Cleaning...
-if exist build\boot.bin   del /q build\boot.bin
-if exist build\stage2.bin del /q build\stage2.bin
-if exist build\kernel.bin del /q build\kernel.bin
-if exist build\fs.bin     del /q build\fs.bin
-if exist claudeos.img     del /q claudeos.img
-if exist build            rd build
+if exist build\boot.bin          del /q build\boot.bin
+if exist build\stage2.bin        del /q build\stage2.bin
+if exist build\kernel.bin        del /q build\kernel.bin
+if exist build\fs.bin            del /q build\fs.bin
+if exist build\claudeos_flat.img del /q build\claudeos_flat.img
+if exist claudeos.iso            del /q claudeos.iso
+if exist build                   rd build
 echo Done.
 exit /b 0

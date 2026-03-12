@@ -60,7 +60,7 @@ def main():
         assemble_apps()
         files = sorted([
             f for f in os.listdir(APPS_DIR)
-            if f.lower().endswith('.bin')
+            if f.lower().endswith('.bin') or f.lower().endswith('.bmp')
         ])
 
     if len(files) > MAX_FILES:

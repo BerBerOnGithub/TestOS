@@ -382,7 +382,7 @@ e1000_init:
     mov  [edi], eax
     mov  dword [edi + 4], 0
     mov  word  [edi + 8], 0
-    mov  byte  [edi + 12], 0
+    mov  byte  [edi + 11], 0
     inc  ecx
     jmp  .rx_init
 .rx_init_done:
@@ -726,7 +726,7 @@ e1000_recv:
 
     ; Poll DD bit (bit 0) of STATUS byte at offset +11
     ; (NOT +12 — that is the errors byte)
-    test byte [esi + 12], E1000_RXD_STAT_DD
+    test byte [esi + 11], E1000_RXD_STAT_DD
     jz   .no_packet          ; NIC hasn't written here yet
 
     ; Get received length from offset +8
@@ -746,7 +746,7 @@ e1000_recv:
     pop  esi
 
     ; Clear STATUS byte at +11 so we don't re-process this slot
-    mov  byte [esi + 12], 0
+    mov  byte [esi + 11], 0
 
     ; Save the slot index we just consumed — this goes back to RDT
     mov  edx, ebx            ; EDX = consumed slot index

@@ -19,11 +19,11 @@ FS_SEG      equ 0x2000
 ENTRY_SIZE  equ 24
 NAME_LEN    equ 16
 DIR_OFFSET  equ 6
-RUN_SEG     equ 0x0C00      ; physical 0xC000 — scratch area for apps
+RUN_SEG     equ 0x0C00      ; physical 0xC000 " scratch area for apps
 
-; ---------------------------------------------------------------------------
-; fs_valid — sets ZF=1 if FS magic is present
-; ---------------------------------------------------------------------------
+; -
+; fs_valid " sets ZF=1 if FS magic is present
+; -
 fs_valid:
     push ax
     push bx
@@ -51,9 +51,9 @@ fs_valid:
     test ax, ax
     ret
 
-; ---------------------------------------------------------------------------
-; cmd_ls — list files
-; ---------------------------------------------------------------------------
+; -
+; cmd_ls " list files
+; -
 cmd_ls:
     push ax
     push bx
@@ -148,9 +148,9 @@ cmd_ls:
     pop  ax
     jmp  shell_exec.done
 
-; ---------------------------------------------------------------------------
-; cmd_run — run <name>
-; ---------------------------------------------------------------------------
+; -
+; cmd_run " run <name>
+; -
 cmd_run:
     push ax
     push bx
@@ -271,16 +271,16 @@ cmd_run:
     pop  ax
     jmp  shell_exec.done
 
-; ---------------------------------------------------------------------------
+; -
 ; Data
-; ---------------------------------------------------------------------------
+; -
 fs_name_buf:   times NAME_LEN db 0
 fs_tmp_size:   dw 0
 fs_tmp_off:    dw 0
 run_vec:       dw 0x0000, RUN_SEG    ; far pointer offset:seg
 
 str_ls_hdr:       db ' Filename        Size', 13, 10
-                  db ' ---------------+--------', 0
+                  db ' -', 0
 str_ls_sep:       db '   ', 0
 str_ls_bytes:     db ' bytes', 0
 str_ls_empty:     db ' (no files)', 0

@@ -3,9 +3,9 @@
 ;   date, time, setdate, settime, sys, pm, probe
 ; ===========================================================================
 
-; ---------------------------------------------------------------------------
+; -
 ; date - read RTC date via INT 1Ah AH=04h
-; ---------------------------------------------------------------------------
+; -
 cmd_date:
     push ax
     push bx
@@ -48,9 +48,9 @@ cmd_date:
     pop  ax
     jmp  shell_exec.done
 
-; ---------------------------------------------------------------------------
+; -
 ; time - read RTC time via INT 1Ah AH=02h
-; ---------------------------------------------------------------------------
+; -
 cmd_time:
     push ax
     push bx
@@ -91,9 +91,9 @@ cmd_time:
     pop  ax
     jmp  shell_exec.done
 
-; ---------------------------------------------------------------------------
+; -
 ; setdate - interactively set RTC date (YYYY-MM-DD)
-; ---------------------------------------------------------------------------
+; -
 cmd_setdate:
     push ax
     push bx
@@ -225,9 +225,9 @@ cmd_setdate:
     pop  bx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; settime - interactively set RTC time (HH:MM:SS)
-; ---------------------------------------------------------------------------
+; -
 cmd_settime:
     push ax
     push bx
@@ -341,9 +341,9 @@ cmd_settime:
     pop  bx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; sys - full system snapshot: identity, clock, uptime, memory map
-; ---------------------------------------------------------------------------
+; -
 cmd_sys:
     push ax
     push bx
@@ -356,7 +356,7 @@ cmd_sys:
     mov  bl, ATTR_CYAN
     call puts_c
 
-    ; ── Version / identity ───────────────────────────────────────────────
+    ; - Version / identity -
     mov  si, str_sys_os
     mov  bl, ATTR_YELLOW
     call puts_c
@@ -389,12 +389,12 @@ cmd_sys:
     call print_hex_byte
     call nl
 
-    ; ── Separator ────────────────────────────────────────────────────────
+    ; - Separator -
     mov  si, str_sys_sep
     mov  bl, ATTR_CYAN
     call puts_c
 
-    ; ── Date ─────────────────────────────────────────────────────────────
+    ; - Date -
     mov  si, str_sys_date
     mov  bl, ATTR_YELLOW
     call puts_c
@@ -422,7 +422,7 @@ cmd_sys:
     call puts_c
     call nl
 
-    ; ── Time ─────────────────────────────────────────────────────────────
+    ; - Time -
 .sys_time:
     mov  si, str_sys_time
     mov  bl, ATTR_YELLOW
@@ -449,7 +449,7 @@ cmd_sys:
     call puts_c
     call nl
 
-    ; ── Uptime ───────────────────────────────────────────────────────────
+    ; - Uptime -
 .sys_uptime:
     mov  si, str_sys_up
     mov  bl, ATTR_YELLOW
@@ -468,12 +468,12 @@ cmd_sys:
     call puts_c
     call nl
 
-    ; ── Separator ────────────────────────────────────────────────────────
+    ; - Separator -
     mov  si, str_sys_sep
     mov  bl, ATTR_CYAN
     call puts_c
 
-    ; ── Memory map ───────────────────────────────────────────────────────
+    ; - Memory map -
     mov  si, str_mem_text
     mov  bl, ATTR_NORMAL
     call puts_c
@@ -485,9 +485,9 @@ cmd_sys:
     pop  ax
     jmp  shell_exec.done
 
-; ---------------------------------------------------------------------------
+; -
 ; cmd_pm - switch to 32-bit protected mode
-; ---------------------------------------------------------------------------
+; -
 cmd_pm:
     push ax
     push bx
@@ -554,9 +554,9 @@ cmd_pm:
     mov  cr0, eax
     jmp  0x08:pm_entry
 
-; ---------------------------------------------------------------------------
+; -
 ; cmd_probe - 16-bit mode verifier
-; ---------------------------------------------------------------------------
+; -
 cmd_probe:
     push ax
     push bx

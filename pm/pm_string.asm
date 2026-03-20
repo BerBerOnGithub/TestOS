@@ -5,20 +5,20 @@
 ; All output via pm_putc (pm_screen.asm). No BIOS.
 ;
 ; Public interface:
-;   pm_strcmp       ESI, EDI → ZF=1 if equal
-;   pm_startswith   ESI=input, EDI=prefix → ZF=1 if match
+;   pm_strcmp       ESI, EDI +' ZF=1 if equal
+;   pm_startswith   ESI=input, EDI=prefix +' ZF=1 if match
 ;   pm_print_uint   EAX = unsigned 32-bit integer
 ;   pm_print_int    EAX = signed 32-bit integer
-;   pm_parse_uint   ESI → EAX, ESI advanced past digits
-;   pm_parse_int    ESI → EAX (signed), ESI advanced
+;   pm_parse_uint   ESI +' EAX, ESI advanced past digits
+;   pm_parse_int    ESI +' EAX (signed), ESI advanced
 ; ===========================================================================
 
 [BITS 32]
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_strcmp - compare null-terminated strings at ESI and EDI
 ; ZF=1 if equal, ZF=0 if not
-; ---------------------------------------------------------------------------
+; -
 pm_strcmp:
     push eax
     push esi
@@ -45,10 +45,10 @@ pm_strcmp:
     or   eax, 1              ; ZF=0
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_startswith - ZF=1 if string at ESI starts with prefix at EDI
 ; Neither pointer is modified
-; ---------------------------------------------------------------------------
+; -
 pm_startswith:
     push eax
     push esi
@@ -75,9 +75,9 @@ pm_startswith:
     or   eax, 1
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_print_uint - print EAX as unsigned decimal
-; ---------------------------------------------------------------------------
+; -
 pm_print_uint:
     push eax
     push ebx
@@ -115,9 +115,9 @@ pm_print_uint:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_print_int - print EAX as signed decimal
-; ---------------------------------------------------------------------------
+; -
 pm_print_int:
     push eax
     push ebx
@@ -135,10 +135,10 @@ pm_print_int:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_parse_uint - parse decimal digits at [ESI] into EAX
 ; ESI is advanced past all digit characters
-; ---------------------------------------------------------------------------
+; -
 pm_parse_uint:
     push ebx
     push ecx
@@ -162,10 +162,10 @@ pm_parse_uint:
     pop  ebx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_parse_int - parse optional leading '-' then digits; result in EAX
 ; ESI is advanced past consumed characters
-; ---------------------------------------------------------------------------
+; -
 pm_parse_int:
     push ebx
     xor  ebx, ebx            ; EBX=0 = positive
@@ -182,9 +182,9 @@ pm_parse_int:
     pop  ebx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_skip_spaces - advance ESI past space characters
-; ---------------------------------------------------------------------------
+; -
 pm_skip_spaces:
     push eax
 .loop:

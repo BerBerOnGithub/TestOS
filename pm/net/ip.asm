@@ -17,8 +17,8 @@
 ;   [16] dst IP    4   BE
 ;
 ; Public interface:
-;   ip_send   ESI=payload, ECX=len, EAX=dst_ip, BL=protocol → CF
-;   ip_recv   → ESI=payload, ECX=payload_len, AL=protocol,
+;   ip_send   ESI=payload, ECX=len, EAX=dst_ip, BL=protocol -> CF
+;   ip_recv   -> ESI=payload, ECX=payload_len, AL=protocol,
 ;               ip_rx_src/dst populated; CF=1 no packet
 ; ===========================================================================
 
@@ -30,11 +30,11 @@ IP_PROTO_ICMP   equ 1
 IP_PROTO_TCP    equ 6
 IP_PROTO_UDP    equ 17
 
-; ---------------------------------------------------------------------------
+; -
 ; ip_checksum - compute ones-complement checksum over ECX bytes at ESI
 ; Returns checksum in AX (ready to store big-endian)
 ; Preserves all registers except EAX
-; ---------------------------------------------------------------------------
+; -
 ip_checksum:
     push ebx
     push ecx
@@ -79,7 +79,7 @@ ip_checksum:
     pop  ebx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; ip_send - build IPv4 header and transmit
 ;
 ; In:  ESI = payload pointer
@@ -87,7 +87,7 @@ ip_checksum:
 ;      EAX = destination IP (host order)
 ;      BL  = protocol (IP_PROTO_ICMP etc.)
 ; Out: CF=0 ok, CF=1 error
-; ---------------------------------------------------------------------------
+; -
 ip_send:
     push eax
     push ebx
@@ -105,11 +105,11 @@ ip_send:
     mov  [ip_tx_pld_ptr],  esi
     mov  [ip_tx_pld_len],  ecx
 
-    ; ── Build IP header in ip_tx_buf ────────────────────────────────────
+    ; - Build IP header in ip_tx_buf -
     mov  edi, ip_tx_buf
 
-    ; ver=4 IHL=5 → 0x45; DSCP=0
-    mov  word [edi + 0],  0x0045     ; stored LE: byte0=0x45 byte1=0x00 ✓
+    ; ver=4 IHL=5 -> 0x45; DSCP=0
+    mov  word [edi + 0],  0x0045     ; stored LE: byte0=0x45 byte1=0x00 OK
 
     ; total length = 20 + payload (big-endian)
     mov  eax, [ip_tx_pld_len]
@@ -123,7 +123,7 @@ ip_send:
     xchg al, ah
     mov  [edi + 4], ax
 
-    ; flags=DF(0x4000), frag offset=0 → 0x40 0x00 big-endian
+    ; flags=DF(0x4000), frag offset=0 -> 0x40 0x00 big-endian
     mov  word [edi + 6],  0x0040
 
     ; TTL, protocol
@@ -134,12 +134,12 @@ ip_send:
     ; checksum = 0 for now
     mov  word [edi + 10], 0
 
-    ; source IP (host → big-endian)
+    ; source IP (host -> big-endian)
     mov  eax, [net_our_ip]
     bswap eax
     mov  [edi + 12], eax
 
-    ; dest IP (host → big-endian)
+    ; dest IP (host -> big-endian)
     mov  eax, [ip_tx_dst]
     bswap eax
     mov  [edi + 16], eax
@@ -169,7 +169,7 @@ ip_send:
     ; resolve destination MAC via ARP cache
     mov  eax, [ip_tx_dst]
 
-    ; check if dst is on our subnet — if not, use gateway
+    ; check if dst is on our subnet - if not, use gateway
     mov  edx, [net_our_mask]
     mov  ebx, [net_our_ip]
     and  ebx, edx
@@ -180,7 +180,7 @@ ip_send:
     je   .local
     mov  eax, [net_our_gw]   ; off-subnet: route via gateway
 .local:
-    call arp_resolve         ; EAX=ip → ESI=mac ptr, CF
+    call arp_resolve         ; EAX=ip -> ESI=mac ptr, CF
     jc   .err                ; MAC not in cache
 
     ; send via ethernet
@@ -201,7 +201,7 @@ ip_send:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; ip_recv - receive one IPv4 packet if available
 ;
 ; Out: CF=1  no packet
@@ -210,14 +210,14 @@ ip_send:
 ;        ECX = payload length
 ;        AL  = protocol
 ;        ip_rx_src, ip_rx_dst populated (host order)
-; ---------------------------------------------------------------------------
+; -
 ip_recv:
     push ebx
     push edx
     push edi
 
     ; eth_recv returns: ESI=payload ptr (eth_rx_buf+14), ECX=payload len, DX=etype
-    ; It does NOT use EDI — do not pass ip_rx_buf here.
+    ; It does NOT use EDI - do not pass ip_rx_buf here.
     call eth_recv
     jc   .no_packet
 
@@ -231,7 +231,7 @@ ip_recv:
     cmp  byte [esi], 0x45
     jne  .no_packet
 
-    ; extract src/dst IPs (big-endian in packet → host order)
+    ; extract src/dst IPs (big-endian in packet -> host order)
     mov  eax, [esi + 12]
     bswap eax
     mov  [ip_rx_src], eax
@@ -272,9 +272,9 @@ ip_recv:
     pop  edx
     pop  ebx
     ret
-; ---------------------------------------------------------------------------
+; -
 ; Data
-; ---------------------------------------------------------------------------
+; -
 ip_tx_buf:       times (IP_HDR_LEN + 1480) db 0
 ip_rx_buf:       times (IP_HDR_LEN + 1480) db 0
 

@@ -5,8 +5,8 @@
 ;   beep
 ; ===========================================================================
 
-; ---------------------------------------------------------------------------
-; calc <num> <op> <num>  — signed 16-bit arithmetic
+; -
+; calc <num> <op> <num>  " signed 16-bit arithmetic
 ;
 ; Operands  : -32768 .. 32767  (parsed with parse_int16)
 ; Operations: +  -  *  /
@@ -14,9 +14,9 @@
 ;
 ; Overflow detection:
 ;   Add/Sub : native add/sub + jo (overflow flag)
-;   Mul     : imul → DX:AX; overflow if DX != sign-extension of AX
+;   Mul     : imul +' DX:AX; overflow if DX != sign-extension of AX
 ;   Div     : cwd + idiv; overflow if quotient out of 16-bit signed range
-; ---------------------------------------------------------------------------
+; -
 cmd_calc:
     push ax
     push bx
@@ -30,7 +30,7 @@ cmd_calc:
     or   al, al
     jz   .calc_usage
 
-    ; ── Parse operand 1 (signed) ─────────────────────────────────────────
+    ; - Parse operand 1 (signed) -
     call parse_int16
     mov  [calc_n1_lo], ax
 
@@ -43,11 +43,11 @@ cmd_calc:
 
     call skip_spaces
 
-    ; ── Parse operand 2 (signed) ─────────────────────────────────────────
+    ; - Parse operand 2 (signed) -
     call parse_int16
     mov  [calc_n2_lo], ax
 
-    ; ── Echo the expression ──────────────────────────────────────────────
+    ; - Echo the expression -
     call nl
     mov  ax, [calc_n1_lo]
     call print_int
@@ -66,7 +66,7 @@ cmd_calc:
     mov  bl, ATTR_YELLOW
     call puts_c
 
-    ; ── Dispatch ─────────────────────────────────────────────────────────
+    ; - Dispatch -
     mov  ax, [calc_n1_lo]
     mov  bx, [calc_n2_lo]
 
@@ -80,24 +80,24 @@ cmd_calc:
     je   .c_div
     jmp  .calc_badop
 
-; ── Addition ─────────────────────────────────────────────────────────────
+; - Addition -
 .c_add:
     add  ax, bx
     jo   .calc_overflow
     call print_int
     jmp  .calc_nl
 
-; ── Subtraction ──────────────────────────────────────────────────────────
+; - Subtraction -
 .c_sub:
     sub  ax, bx
     jo   .calc_overflow
     call print_int
     jmp  .calc_nl
 
-; ── Multiplication ───────────────────────────────────────────────────────
-; imul BX → signed 32-bit result in DX:AX
+; - Multiplication -
+; imul BX +' signed 32-bit result in DX:AX
 ; We print the full 32-bit signed result, so 500*500=250000 works fine.
-; Only overflow if the result doesn't fit in 32 bits — impossible with two
+; Only overflow if the result doesn't fit in 32 bits " impossible with two
 ; 16-bit inputs (max: -32768 * -32768 = 1,073,741,824 which fits in 32 bits)
 ; so multiplication never overflows here.
 .c_mul:
@@ -105,7 +105,7 @@ cmd_calc:
     call print_int32         ; print signed 32-bit DX:AX
     jmp  .calc_nl
 
-; ── Division ─────────────────────────────────────────────────────────────
+; - Division -
 ; cwd sign-extends AX into DX:AX, idiv divides by BX
 ; Quotient in AX, remainder in DX
 .c_div:
@@ -129,7 +129,7 @@ cmd_calc:
     pop  ax
     jmp  .calc_nl
 
-; ── Error paths ───────────────────────────────────────────────────────────
+; - Error paths -
 .calc_overflow:
     mov  si, str_overflow
     mov  bl, ATTR_RED
@@ -165,10 +165,10 @@ cmd_calc:
     pop  ax
     jmp  shell_exec.done
 
-; ---------------------------------------------------------------------------
+; -
 ; color [XX] - no arg: show palette. With arg: set shell color + repaint bg.
 ; If high nibble (bg) == low nibble (fg), warn and confirm before applying.
-; ---------------------------------------------------------------------------
+; -
 cmd_color:
     push ax
     push bx
@@ -176,14 +176,14 @@ cmd_color:
     push dx
     push si
     lea  si, [cmd_buf + 6]   ; skip "color "
-    mov  al, [cmd_buf + 5]   ; byte after "color" — space or null
+    mov  al, [cmd_buf + 5]   ; byte after "color" " space or null
     or   al, al
     jz   .show_palette
     mov  al, [si]
     or   al, al
     jz   .show_palette
 
-    ; ── Parse two hex digits into BL ──────────────────────────────────────
+    ; - Parse two hex digits into BL -
     call parse_hex_digit
     jc   .color_usage
     mov  bl, al
@@ -193,16 +193,16 @@ cmd_color:
     jc   .color_usage
     or   bl, al              ; BL = full attribute byte
 
-    ; ── Check bg == fg (text would merge into background) ─────────────────
+    ; - Check bg == fg (text would merge into background) -
     mov  al, bl
     shr  al, 4               ; AL = background nibble
     and  al, 0x07            ; mask blink bit for comparison
     mov  ah, bl
     and  ah, 0x0F            ; AH = foreground nibble
     cmp  al, ah
-    jne  .apply              ; different — safe, skip warning
+    jne  .apply              ; different " safe, skip warning
 
-    ; ── Warn: fg == bg ────────────────────────────────────────────────────
+    ; - Warn: fg == bg -
     call nl
     mov  si, str_color_merge_warn
     mov  bl, ATTR_RED
@@ -212,7 +212,7 @@ cmd_color:
     call puts_c
 
     xor  ah, ah
-    int  0x16                ; wait for keypress → AL = ASCII
+    int  0x16                ; wait for keypress +' AL = ASCII
     mov  cl, al              ; save answer (BL about to be reloaded)
 
     ; re-parse the attribute (BL was clobbered by puts_c)
@@ -242,11 +242,11 @@ cmd_color:
     call nl
     jmp  .color_end
 
-    ; ── Apply: save attr, repaint entire screen background ────────────────
+    ; - Apply: save attr, repaint entire screen background -
 .apply:
     mov  [shell_attr], bl
 
-    ; INT 10h AH=06h: scroll window (AL=0 → clear entire window)
+    ; INT 10h AH=06h: scroll window (AL=0 +' clear entire window)
     ; BH = fill attribute, CX = top-left (0,0), DX = bottom-right (24,79)
     mov  ah, 0x06
     xor  al, al              ; clear entire region
@@ -326,16 +326,16 @@ cmd_color:
     pop  ax
     jmp  shell_exec.done
 
-; ---------------------------------------------------------------------------
+; -
 ; beep - sound PC speaker at ~1000 Hz for ~300 ms
-; ---------------------------------------------------------------------------
+; -
 cmd_beep:
     push ax
     push bx
     push cx
     push si
 
-    ; Set PIT channel 2: divisor 1193 ≈ 1000 Hz
+    ; Set PIT channel 2: divisor 1193 0/00 1000 Hz
     mov  al, 0xB6
     out  0x43, al
     mov  al, 0xA9           ; low byte of 1193

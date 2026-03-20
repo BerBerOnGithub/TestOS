@@ -2,9 +2,9 @@
 ; core/utils.asm - Miscellaneous parsing and utility routines
 ; ===========================================================================
 
-; ---------------------------------------------------------------------------
+; -
 ; skip_spaces - advance SI past space characters
-; ---------------------------------------------------------------------------
+; -
 skip_spaces:
     push ax
 .ss_lp:
@@ -17,9 +17,9 @@ skip_spaces:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; parse_uint16 - parse decimal digits at [SI] into AX; SI advances past them
-; ---------------------------------------------------------------------------
+; -
 parse_uint16:
     push bx
     push cx
@@ -44,10 +44,10 @@ parse_uint16:
     pop  bx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; parse_int16 - parse optional '-' then digits at [SI] into AX (signed 16-bit)
 ;               SI advances past the number
-; ---------------------------------------------------------------------------
+; -
 parse_int16:
     push bx
     xor  bx, bx              ; BX=0 means positive
@@ -64,7 +64,7 @@ parse_int16:
     pop  bx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; parse_uint32  -  parse decimal string at [SI] into DX:AX (32-bit unsigned)
 ;                  SI is advanced past all consumed digit characters.
 ;                  Saves/restores BX, CX.
@@ -76,7 +76,7 @@ parse_int16:
 ;   new high word = old_DX * 10 + DX_tmp
 ;   This is valid as long as DX < 6554, i.e. the value fits in ~32 bits,
 ;   which is guaranteed for any 10-digit decimal input <= 4,294,967,295.
-; ---------------------------------------------------------------------------
+; -
 parse_uint32:
     push bx
     push cx
@@ -92,7 +92,7 @@ parse_uint32:
     ja   .p32_done
     sub  cl, '0'             ; digit in CL
 
-    ; --- multiply DX:AX by 10 ---
+    ; - multiply DX:AX by 10 -
     push cx                  ; save digit
     push dx                  ; save old high word
 
@@ -107,7 +107,7 @@ parse_uint32:
     mov  dx, ax              ; DX = new high word
     pop  ax                  ; AX = new low word
 
-    ; --- add digit ---
+    ; - add digit -
     pop  cx
     xor  ch, ch
     add  ax, cx
@@ -121,10 +121,10 @@ parse_uint32:
     pop  bx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; parse_hex_digit  -  parse one hex char at [SI]; nibble->AL, CF=1 on error
 ;                     SI is NOT advanced
-; ---------------------------------------------------------------------------
+; -
 parse_hex_digit:
     push si
     mov  al, [si]
@@ -156,9 +156,9 @@ parse_hex_digit:
     pop  si
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; get_rand_byte  -  pseudo-random byte in AL via BIOS timer low byte
-; ---------------------------------------------------------------------------
+; -
 get_rand_byte:
     push cx
     push dx
@@ -169,7 +169,7 @@ get_rand_byte:
     pop  cx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; divmod32  -  exact 32-bit unsigned division via binary long division
 ;
 ;   In:   DX:AX = dividend,  BX:CX = divisor
@@ -177,8 +177,8 @@ get_rand_byte:
 ;   CF=1 if divisor was zero (all outputs undefined).
 ;
 ; Uses 32 memory locations for scratch to avoid register pressure.
-; 32 iterations of shift-and-subtract, ~1000 cycles total -- imperceptible.
-; ---------------------------------------------------------------------------
+; 32 iterations of shift-and-subtract, ~1000 cycles total - imperceptible.
+; -
 divmod32:
     ; zero divisor check
     test bx, bx

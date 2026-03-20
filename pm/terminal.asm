@@ -1,5 +1,5 @@
 ; ===========================================================================
-; pm/terminal.asm — terminal with backing text buffer, clean register usage
+; pm/terminal.asm " terminal with backing text buffer, clean register usage
 ; ===========================================================================
 [BITS 32]
 
@@ -9,9 +9,9 @@
 %define TERM_BG        0x00
 %define TERM_PROMPT_C  0x0B
 
-; ---------------------------------------------------------------------------
+; -
 ; term_init
-; ---------------------------------------------------------------------------
+; -
 term_init:
     pusha
     mov  edi, term_buf
@@ -52,9 +52,9 @@ term_init:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; term_update_coords — recompute pixel coords and row/col counts from wm_table[0]
-; ---------------------------------------------------------------------------
+; -
+; term_update_coords " recompute pixel coords and row/col counts from wm_table[0]
+; -
 term_update_coords:
     pusha
     mov  eax, [wm_table + 0]    ; win_x
@@ -84,9 +84,9 @@ term_update_coords:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; term_buf_write — write AL=char DL=colour at [term_row][term_col]
-; ---------------------------------------------------------------------------
+; -
+; term_buf_write " write AL=char DL=colour at [term_row][term_col]
+; -
 term_buf_write:
     pusha
     ; offset = row*TERM_BUF_COLS*2 + col*2
@@ -102,9 +102,9 @@ term_buf_write:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; term_buf_scroll — shift all rows up by 1, zero last row
-; ---------------------------------------------------------------------------
+; -
+; term_buf_scroll " shift all rows up by 1, zero last row
+; -
 term_buf_scroll:
     pusha
     mov  esi, term_buf + (TERM_BUF_COLS * 2)
@@ -118,9 +118,9 @@ term_buf_scroll:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; term_redraw — recompute coords, fill black, replay buffer to screen
-; ---------------------------------------------------------------------------
+; -
+; term_redraw " recompute coords, fill black, replay buffer to screen
+; -
 term_redraw:
     pusha
     call term_update_coords
@@ -153,14 +153,14 @@ term_redraw:
     add  eax, ecx
     add  eax, term_buf          ; EAX = cell ptr
 
-    mov  al,  [eax]             ; AL = char  (NOTE: destroys upper EAX — that's ok, buf ptr no longer needed)
+    mov  al,  [eax]             ; AL = char  (NOTE: destroys upper EAX " that's ok, buf ptr no longer needed)
     test al, al
     jz   .rskip
 
-    mov  [term_tmp_char], al    ; save char to memory — avoids ALL register aliasing
-    mov  dl, [eax+1]            ; wait — eax upper bytes corrupted. use offset calc instead.
+    mov  [term_tmp_char], al    ; save char to memory " avoids ALL register aliasing
+    mov  dl, [eax+1]            ; wait " eax upper bytes corrupted. use offset calc instead.
 
-    ; EAX upper bytes were trashed by "mov al, [eax]" — recalculate ptr for colour byte
+    ; EAX upper bytes were trashed by "mov al, [eax]" " recalculate ptr for colour byte
     mov  eax, [term_ri]
     imul eax, TERM_BUF_COLS * 2
     mov  ecx, [term_ci]
@@ -193,9 +193,9 @@ term_redraw:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; term_tick — non-blocking key handler
-; ---------------------------------------------------------------------------
+; -
+; term_tick " non-blocking key handler
+; -
 term_tick:
     ; non-blocking: check keyboard buffer has data AND it's not mouse data
     in   al, 0x64
@@ -281,9 +281,9 @@ term_tick:
 .done:
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; term_draw_prompt
-; ---------------------------------------------------------------------------
+; -
 term_draw_prompt:
     pusha
     mov  esi, term_str_prompt
@@ -292,9 +292,9 @@ term_draw_prompt:
     popa
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; term_putchar  AL=char (TERM_FG)
-; ---------------------------------------------------------------------------
+; -
 term_putchar:
     push edx
     mov  dl, TERM_FG
@@ -345,9 +345,9 @@ term_putchar_col:
     popa
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; term_puts  ESI=string (TERM_FG)
-; ---------------------------------------------------------------------------
+; -
 term_puts:
     push edx
     mov  dl, TERM_FG
@@ -380,9 +380,9 @@ term_puts_colour:    ; ESI=str  DL=colour
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
-; term_newline — advance row, scroll buffer+pixels when row reaches term_rows
-; ---------------------------------------------------------------------------
+; -
+; term_newline " advance row, scroll buffer+pixels when row reaches term_rows
+; -
 term_newline:
     pusha
     mov  dword [term_col], 0
@@ -398,7 +398,7 @@ term_newline:
     call cursor_erase
 
     ; scroll pixels up 8px: copy rows cy+8..cy+ch-1 to cy..cy+ch-9
-    ; EDX must NOT be used as loop limit across mul — save to memory
+    ; EDX must NOT be used as loop limit across mul " save to memory
     mov  eax, [term_ch]
     sub  eax, 8
     mov  [term_scroll_lim], eax  ; pixel rows to copy
@@ -411,7 +411,7 @@ term_newline:
     mov  eax, [term_cy]
     add  eax, 8
     add  eax, esi
-    mul  dword [gfx_fb_pitch]   ; EDX trashed here — that's fine now
+    mul  dword [gfx_fb_pitch]   ; EDX trashed here " that's fine now
     add  eax, [gfx_fb_base]
     add  eax, [term_cx]
     mov  edi, eax               ; save src ptr
@@ -419,7 +419,7 @@ term_newline:
     ; dst ptr = fb[cy + esi][cx]
     mov  eax, [term_cy]
     add  eax, esi
-    mul  dword [gfx_fb_pitch]   ; EDX trashed again — fine
+    mul  dword [gfx_fb_pitch]   ; EDX trashed again " fine
     add  eax, [gfx_fb_base]
     add  eax, [term_cx]
 
@@ -455,9 +455,9 @@ term_newline:
     popa
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Data
-; ---------------------------------------------------------------------------
+; -
 term_col:         dd 0
 term_row:         dd 0
 term_input_len:   dd 0
@@ -478,7 +478,7 @@ term_scroll_lim:  dd 0
 
 term_buf: times (TERM_BUF_ROWS * TERM_BUF_COLS * 2) db 0
 
-term_str_banner:  db 'ClaudeOS v2.0 - type help for commands', 0
+term_str_banner:  db 'NatureOS v2.0 - type help for commands', 0
 term_str_disk_ok: db 'Data disk: OK', 0
 term_str_disk_no: db 'Data disk: not found (no -drive attached?)', 0
 term_str_prompt:  db '> ', 0

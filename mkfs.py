@@ -31,7 +31,7 @@ NAME_LEN   = 16
 ENTRY_SIZE = NAME_LEN + 4 + 4   # 24 bytes
 
 def assemble_apps():
-    """Find all .asm files in apps/ (recursively) and assemble them to .bin."""
+    """Find all .asm files in apps/ (recursively) and assemble them to .bin-
     asm_files = glob.glob(os.path.join(APPS_DIR, '**', '*.asm'), recursive=True)
     if not asm_files:
         return
@@ -54,7 +54,7 @@ def assemble_apps():
 
 def main():
     if not os.path.isdir(APPS_DIR):
-        print(f'  No {APPS_DIR}/ folder found — creating empty fs.bin')
+        print(f'  No {APPS_DIR}/ folder found - creating empty fs.bin')
         files = []
     else:
         assemble_apps()
@@ -69,7 +69,7 @@ def main():
 
     print(f'[mkfs] Packing {len(files)} file(s) into {OUTPUT}')
 
-    # --- calculate offsets ---
+    # - calculate offsets -
     dir_size    = 6 + len(files) * ENTRY_SIZE   # header + directory
     data_offset = dir_size
     entries = []
@@ -87,7 +87,7 @@ def main():
         print(f'  + {fname:<20} {len(data):>6} bytes  offset=0x{data_offset:04X}')
         data_offset += len(data)
 
-    # --- write fs.bin ---
+    # - write fs.bin -
     os.makedirs('build', exist_ok=True)
     with open(OUTPUT, 'wb') as out:
         # header

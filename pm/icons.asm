@@ -1,5 +1,5 @@
 ; ===========================================================================
-; pm/icons.asm — Desktop icon system
+; pm/icons.asm " Desktop icon system
 ; ===========================================================================
 [BITS 32]
 
@@ -8,9 +8,9 @@
 %define ICON_SZ       32
 %define ICON_TRANSP   1     ; BMP index 1 = dark blue = transparent background
 
-; ---------------------------------------------------------------------------
+; -
 ; icons_init
-; ---------------------------------------------------------------------------
+; -
 icons_init:
     pusha
     mov  dword [icn_init_idx], 0
@@ -67,9 +67,9 @@ icons_init:
     popa
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; icons_draw
-; ---------------------------------------------------------------------------
+; -
 icons_draw:
     pusha
     mov  dword [icn_draw_idx], 0
@@ -89,7 +89,7 @@ icons_draw:
     mov  [icn_by],  eax
     mov  eax, [edi+8]
     mov  [icn_buf], eax
-    ; blit pixels — compute row ptr once per row, write across
+    ; blit pixels " compute row ptr once per row, write across
     mov  dword [icn_row], 0
 .prow:
     mov  eax, [icn_row]
@@ -125,7 +125,7 @@ icons_draw:
     inc  dword [icn_row]
     jmp  .prow
 .prowdone:
-    ; draw label centred below icon — reload edi first
+    ; draw label centred below icon " reload edi first
     mov  ecx, [icn_draw_idx]
     imul edi, ecx, ICON_STRIDE
     add  edi, icon_table
@@ -157,9 +157,9 @@ icons_draw:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; icons_hover — update hover flags, set icn_hover_changed if any flipped
-; ---------------------------------------------------------------------------
+; -
+; icons_hover " update hover flags, set icn_hover_changed if any flipped
+; -
 icons_hover:
     pusha
     mov  dword [icn_hover_idx], 0
@@ -200,9 +200,9 @@ icons_hover:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; icons_click — EAX=x EBX=y; CF=1 hit, CF=0 miss
-; ---------------------------------------------------------------------------
+; -
+; icons_click " EAX=x EBX=y; CF=1 hit, CF=0 miss
+; -
 icons_click:
     push ecx
     push edi
@@ -231,7 +231,7 @@ icons_click:
     add  ebx, ICON_SZ + 10
     cmp  eax, ebx
     jg   .next
-    ; hit — open by type
+    ; hit " open by type
     movzx eax, byte [edi+12]
     cmp  eax, 0
     jne  .chk_clock
@@ -273,9 +273,9 @@ icons_click:
     pop  ecx
     ret
 
-; ---------------------------------------------------------------------------
-; icons_redraw_column — repaint just the left icon column (no full redraw)
-; ---------------------------------------------------------------------------
+; -
+; icons_redraw_column " repaint just the left icon column (no full redraw)
+; -
 icons_redraw_column:
     pusha
     ; fill icon column with desktop colour

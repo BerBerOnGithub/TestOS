@@ -10,7 +10,7 @@
     mov  ds, ax
 
     rand_byte                ; AL = random (AH = leftover syscall# 0x04)
-    xor  ah, ah              ; AX = 0x00xx  — clear AH before division
+    xor  ah, ah              ; AX = 0x00xx  " clear AH before division
     mov  cl, 100
     div  cl                  ; AL = quotient, AH = remainder (0-99)
     mov  al, ah              ; AL = remainder

@@ -15,9 +15,9 @@
 
 [BITS 32]
 
-; ---------------------------------------------------------------------------
+; -
 ; Driver status table
-; ---------------------------------------------------------------------------
+; -
 pm_drv_status:
     db 0    ; 0 Screen
     db 0    ; 1 Keyboard
@@ -28,16 +28,16 @@ pm_drv_status:
 
 PM_DRV_COUNT equ 6
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_drv_init - initialise all PM drivers on entry to protected mode
-; ---------------------------------------------------------------------------
+; -
 pm_drv_init:
     push eax
     push ecx
     push edx
     push edi
 
-    ; ── Driver 0: Screen ─────────────────────────────────────────────────
+    ; - Driver 0: Screen -
     ; Clear VGA text buffer directly (no BIOS)
     mov  edi, 0x000B8000
     mov  ecx, 80 * 25
@@ -61,8 +61,8 @@ pm_drv_init:
     out  dx, al
     mov  byte [pm_drv_status + 0], 1
 
-    ; ── Driver 1: Keyboard ───────────────────────────────────────────────
-    ; Flush PS/2 output buffer — drain any pending bytes from port 0x60
+    ; - Driver 1: Keyboard -
+    ; Flush PS/2 output buffer " drain any pending bytes from port 0x60
 .kbd_flush:
     in   al, 0x64
     test al, 1
@@ -74,28 +74,28 @@ pm_drv_init:
     mov  byte [pm_shift], 0
     mov  byte [pm_drv_status + 1], 1
 
-    ; ── Driver 2: PIT timer ──────────────────────────────────────────────
-    ; Program channel 0: mode 3 (square wave), divisor 11932 ≈ 100 Hz
+    ; - Driver 2: PIT timer -
+    ; Program channel 0: mode 3 (square wave), divisor 11932 0/00 100 Hz
     ; (default BIOS rate is 18.2 Hz; 100 Hz is more useful for delays)
     mov  al, 0x36            ; channel 0, lobyte/hibyte, mode 3, binary
     out  0x43, al
-    mov  ax, 11932           ; 1193182 / 100 = 11931.82 ≈ 11932
+    mov  ax, 11932           ; 1193182 / 100 = 11931.82 0/00 11932
     out  0x40, al            ; low byte
     mov  al, ah
     out  0x40, al            ; high byte
     mov  byte [pm_drv_status + 2], 1
 
-    ; ── Driver 3: Speaker — ensure off ───────────────────────────────────
+    ; - Driver 3: Speaker " ensure off -
     in   al, 0x61
     and  al, 0xFC
     out  0x61, al
     mov  byte [pm_drv_status + 3], 1
 
-    ; ── Driver 4: PCI bus ────────────────────────────────────────────────
+    ; - Driver 4: PCI bus -
     call pci_init
     mov  byte [pm_drv_status + 4], 1
 
-    ; ── Driver 5: e1000 NIC ──────────────────────────────────────────────
+    ; - Driver 5: e1000 NIC -
     call e1000_init
     mov  al, [e1000_ready]
     mov  [pm_drv_status + 5], al
@@ -109,20 +109,20 @@ pm_drv_init:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_drv_shutdown - cleanly shut down all PM drivers before returning to RM
-; ---------------------------------------------------------------------------
+; -
 pm_drv_shutdown:
     push eax
     push edx
 
-    ; ── Driver 3: Speaker — off ───────────────────────────────────────────
+    ; - Driver 3: Speaker " off -
     in   al, 0x61
     and  al, 0xFC
     out  0x61, al
     mov  byte [pm_drv_status + 3], 0
 
-    ; ── Driver 2: PIT — restore BIOS default rate (divisor 0 = 65536 ≈ 18.2 Hz)
+    ; - Driver 2: PIT " restore BIOS default rate (divisor 0 = 65536 0/00 18.2 Hz)
     mov  al, 0x36
     out  0x43, al
     xor  al, al
@@ -130,7 +130,7 @@ pm_drv_shutdown:
     out  0x40, al
     mov  byte [pm_drv_status + 2], 0
 
-    ; ── Driver 1: Keyboard — flush PS/2 buffer ───────────────────────────
+    ; - Driver 1: Keyboard " flush PS/2 buffer -
 .flush:
     in   al, 0x64
     test al, 1
@@ -140,10 +140,10 @@ pm_drv_shutdown:
 .flush_done:
     mov  byte [pm_drv_status + 1], 0
 
-    ; ── Driver 0: Screen — mark unloaded (RM will reinit via BIOS) ───────
+    ; - Driver 0: Screen " mark unloaded (RM will reinit via BIOS) -
     mov  byte [pm_drv_status + 0], 0
 
-    ; ── Driver 5: e1000 — disable RX/TX ─────────────────────────────────
+    ; - Driver 5: e1000 " disable RX/TX -
     cmp  byte [e1000_ready], 1
     jne  .e1000_skip
     xor  eax, eax
@@ -155,16 +155,16 @@ pm_drv_shutdown:
 .e1000_skip:
     mov  byte [pm_drv_status + 5], 0
 
-    ; ── Driver 4: PCI — nothing to teardown ──────────────────────────────
+    ; - Driver 4: PCI " nothing to teardown -
     mov  byte [pm_drv_status + 4], 0
 
     pop  edx
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_cmd_drivers - display PM driver status table
-; ---------------------------------------------------------------------------
+; -
 pm_cmd_drivers:
     push esi
     push ebx
@@ -232,11 +232,11 @@ pm_cmd_drivers:
     call pm_puts
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_delay_ms - busy-wait approximately EAX milliseconds using PIT channel 0
 ; Reads port 0x40 latch; each tick at 100 Hz = 10ms.
 ; For simplicity: spins reading PIT status, counts ticks.
-; ---------------------------------------------------------------------------
+; -
 pm_delay_ms:
     push eax
     push ecx
@@ -255,7 +255,7 @@ pm_delay_ms:
     mov  al, 0x00
     out  0x43, al
     in   al, 0x40        ; low byte
-    in   al, 0x40        ; high byte (discard — just burning a tick)
+    in   al, 0x40        ; high byte (discard " just burning a tick)
     loop .tick
 .done:
     pop  edx
@@ -263,16 +263,16 @@ pm_delay_ms:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Strings
-; ---------------------------------------------------------------------------
+; -
 pm_str_drv_hdr:
     db 13, 10
-    db ' +----------------------+----------+', 13, 10
+    db ' -', 13, 10
     db ' | PM Driver            | Status   |', 13, 10
-    db ' +----------------------+----------+', 13, 10, 0
+    db ' -', 13, 10, 0
 pm_str_drv_footer:
-    db ' +----------------------+----------+', 13, 10, 0
+    db ' -', 13, 10, 0
 pm_str_drv_screen:  db ' | Screen  (0xB8000)    | ', 0
 pm_str_drv_kbd:     db ' | Keyboard (port 0x60) | ', 0
 pm_str_drv_pit:     db ' | PIT Timer (0x40-43)  | ', 0
@@ -288,3 +288,4 @@ pm_str_drv_unloaded: db 'UNLOADED |', 13, 10, 0
 %include "pm/net/arp.asm"
 %include "pm/net/ip.asm"
 %include "pm/net/icmp.asm"
+%include "pm/net/udp.asm"

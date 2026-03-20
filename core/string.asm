@@ -2,9 +2,9 @@
 ; core/string.asm - String and number printing/comparison utilities
 ; ===========================================================================
 
-; ---------------------------------------------------------------------------
+; -
 ; print_uint - print 16-bit AX as unsigned decimal
-; ---------------------------------------------------------------------------
+; -
 print_uint:
     push ax
     push bx
@@ -40,9 +40,9 @@ print_uint:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; print_int - print signed 16-bit AX as decimal
-; ---------------------------------------------------------------------------
+; -
 print_int:
     push ax
     push bx
@@ -60,7 +60,7 @@ print_int:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; print_uint32  -  print 32-bit unsigned integer in DX:AX (decimal)
 ;
 ; Uses repeated division by 10 via two native 16-bit divides:
@@ -69,10 +69,10 @@ print_int:
 ;
 ; Because remainder_hi (0-9) fits easily in 16 bits, the combined dividend
 ; for step 2 is at most 9*65536 + 65535 = 655359, and quotient_lo is
-; therefore at most 65535, safely within 16 bits -- so no #DE fault.
+; therefore at most 65535, safely within 16 bits - so no #DE fault.
 ;
 ; Digits are pushed on the stack and then popped to print in order.
-; ---------------------------------------------------------------------------
+; -
 print_uint32:
     push ax
     push bx
@@ -133,9 +133,9 @@ print_uint32:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; print_uint_3 - print AX as 3-char decimal, space-padded on left
-; ---------------------------------------------------------------------------
+; -
 print_uint_3:
     push ax
     push bx
@@ -170,9 +170,9 @@ print_uint_3:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; print_bcd - print BCD byte AL as two decimal digits
-; ---------------------------------------------------------------------------
+; -
 print_bcd:
     push ax
     push bx
@@ -191,9 +191,9 @@ print_bcd:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; print_hex_byte - print AL as two uppercase hex digits, color in BL
-; ---------------------------------------------------------------------------
+; -
 print_hex_byte:
     push ax
     push bx
@@ -219,11 +219,11 @@ print_hex_byte:
     call putc_color
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; print_int32 - print signed 32-bit value in DX:AX as decimal
 ; Handles negatives by checking sign bit of DX, negating DX:AX, printing '-'
 ; then delegating to print_uint32
-; ---------------------------------------------------------------------------
+; -
 print_int32:
     push ax
     push bx
@@ -251,9 +251,9 @@ print_int32:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; strcmp_buf - compare cmd_buf with string at SI; ZF=1 if equal
-; ---------------------------------------------------------------------------
+; -
 strcmp_buf:
     push ax
     push si
@@ -281,9 +281,9 @@ strcmp_buf:
     or   ax, 1
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; startswith - ZF=1 if cmd_buf starts with string at SI
-; ---------------------------------------------------------------------------
+; -
 startswith:
     push ax
     push si

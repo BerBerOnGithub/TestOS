@@ -7,16 +7,16 @@
 ; ClaudeFS layout (matches cmd_fs.asm / mkfs.py):
 ;   +0   4 bytes  magic "CLFS"
 ;   +4   2 bytes  file count  (word, little-endian)
-;   +6   N×24 bytes directory entries
+;   +6   N-24 bytes directory entries
 ;        +0  16 bytes  filename (null-padded, no path)
 ;       +16   4 bytes  file offset from start of fs.bin  (dword)
 ;       +20   4 bytes  file size in bytes                (dword)
 ;
 ; Public:
 ;   fs_pm_find  ESI = null-terminated name
-;               → CF=0  EAX = pointer to raw file data
+;               +' CF=0  EAX = pointer to raw file data
 ;                        ECX = file size in bytes
-;               → CF=1  not found (or bad magic)
+;               +' CF=1  not found (or bad magic)
 ;
 ; Preserves: EBX, EDX, ESI, EDI
 ; ===========================================================================
@@ -27,7 +27,7 @@ FS_PM_BASE   equ  0x20000
 FS_ENT_SZ    equ  24
 FS_NAME_LEN  equ  16
 
-; ---------------------------------------------------------------------------
+; -
 fs_pm_find:
     push ebx
     push edx

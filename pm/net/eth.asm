@@ -16,9 +16,9 @@
 ;
 ; Public interface:
 ;   eth_send   ESI=payload, ECX=payload_len, EDI=dst_mac, DX=ethertype
-;              → CF=0 ok, CF=1 error
-;   eth_recv   → ESI=frame ptr, ECX=payload_len, DX=ethertype
-;              → CF=0 ok (packet waiting), CF=1 no packet
+;              -> CF=0 ok, CF=1 error
+;   eth_recv   -> ESI=frame ptr, ECX=payload_len, DX=ethertype
+;              -> CF=0 ok (packet waiting), CF=1 no packet
 ;              Caller must process before next eth_recv call (buffer reused)
 ; ===========================================================================
 
@@ -31,7 +31,7 @@ ETH_MIN_FRAME   equ 60          ; minimum frame (padding added by NIC)
 ETHERTYPE_ARP   equ 0x0806
 ETHERTYPE_IPV4  equ 0x0800
 
-; ---------------------------------------------------------------------------
+; -
 ; eth_send - build and transmit an Ethernet II frame
 ;
 ; In:  ESI = payload pointer
@@ -39,7 +39,7 @@ ETHERTYPE_IPV4  equ 0x0800
 ;      EDI = destination MAC pointer (6 bytes)
 ;      DX  = EtherType (host byte order, will be stored big-endian)
 ; Out: CF=0 success, CF=1 error
-; ---------------------------------------------------------------------------
+; -
 eth_send:
     push eax
     push ebx
@@ -57,7 +57,7 @@ eth_send:
     mov  [eth_tx_payload_len], ecx
     mov  [eth_tx_ethertype],   dx
 
-    ; ── Build frame in eth_tx_buf ─────────────────────────────────────────
+    ; - Build frame in eth_tx_buf -
 
     ; destination MAC (6 bytes from EDI)
     push esi
@@ -109,7 +109,7 @@ eth_send:
 
 .send:
     mov  esi, eth_tx_buf
-    call e1000_send_frame    ; ESI=frame, ECX=length → CF
+    call e1000_send_frame    ; ESI=frame, ECX=length -> CF
     jmp  .done
 
 .err:
@@ -123,7 +123,7 @@ eth_send:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; eth_recv - receive one Ethernet frame if available
 ;
 ; Out: CF=1  no packet
@@ -132,13 +132,13 @@ eth_send:
 ;              ECX = payload length
 ;              DX  = EtherType (host byte order)
 ;              eth_rx_dst_mac / eth_rx_src_mac populated
-; ---------------------------------------------------------------------------
+; -
 eth_recv:
     push eax
     push edi
 
     mov  edi, eth_rx_buf
-    call e1000_recv          ; EDI=buf → ECX=total_len, CF
+    call e1000_recv          ; EDI=buf -> ECX=total_len, CF
 
     jc   .no_packet
     test ecx, ecx
@@ -161,7 +161,7 @@ eth_recv:
     pop  ecx
     pop  esi
 
-    ; EtherType at offset 12 — stored big-endian, return host order
+    ; EtherType at offset 12 - stored big-endian, return host order
     mov  ax, [eth_rx_buf + 12]
     xchg al, ah
     mov  dx, ax
@@ -181,9 +181,9 @@ eth_recv:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Data
-; ---------------------------------------------------------------------------
+; -
 eth_tx_buf:          times ETH_MAX_FRAME db 0
 eth_rx_buf:          times ETH_MAX_FRAME db 0
 

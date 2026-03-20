@@ -11,7 +11,7 @@ ATA_CMD_READ     equ 0x20
 ATA_CMD_WRITE    equ 0x30
 ATA_CMD_IDENTIFY equ 0xEC
 
-; ── ata_probe_one ─────────────────────────────────────────────────────────────
+; - ata_probe_one -
 ; In:  [ata_probe_base]=channel, BL=drive sel (0xA0/0xB0)
 ; Out: CF=0 found, CF=1 not found
 ; Also fills ata_probe_stat with final status for debug
@@ -132,7 +132,7 @@ ata_probe_one:
     pop   eax
     ret
 
-; ── ata_init ──────────────────────────────────────────────────────────────────
+; - ata_init -
 ata_init:
     pusha
     mov   byte [ata_ready], 0
@@ -169,7 +169,7 @@ ata_init:
     popa
     ret
 
-; ── ata_wait_ready ────────────────────────────────────────────────────────────
+; - ata_wait_ready -
 ata_wait_ready:
     push  eax
     push  ecx
@@ -192,7 +192,7 @@ ata_wait_ready:
     pop   eax
     ret
 
-; ── ata_wait_drq ──────────────────────────────────────────────────────────────
+; - ata_wait_drq -
 ata_wait_drq:
     push  eax
     push  ecx
@@ -214,7 +214,7 @@ ata_wait_drq:
     pop   eax
     ret
 
-; ── ata_setup_lba ─────────────────────────────────────────────────────────────
+; - ata_setup_lba -
 ata_setup_lba:
     push  eax
     push  edx
@@ -263,7 +263,7 @@ ata_setup_lba:
     pop   edx
     ret
 
-; ── ata_read ──────────────────────────────────────────────────────────────────
+; - ata_read -
 ata_read:
     push  eax
     push  ebx
@@ -295,7 +295,7 @@ ata_read:
     pop   eax
     ret
 
-; ── ata_write ─────────────────────────────────────────────────────────────────
+; - ata_write -
 ata_write:
     push  eax
     push  ebx
@@ -334,7 +334,7 @@ ata_write:
     pop   eax
     ret
 
-; ── data ──────────────────────────────────────────────────────────────────────
+; - data -
 ata_ready:      db 0
 ata_base:       dw 0x170
 ata_drive_sel:  db 0xA0

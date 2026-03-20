@@ -2,9 +2,9 @@
 ; shell/shell.asm - Prompt display and command dispatcher
 ; ===========================================================================
 
-; ---------------------------------------------------------------------------
+; -
 ; shell_prompt - print the shell prompt
-; ---------------------------------------------------------------------------
+; -
 shell_prompt:
     push ax
     push bx
@@ -26,14 +26,14 @@ shell_prompt:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; shell_exec - dispatch the command in cmd_buf
-; ---------------------------------------------------------------------------
+; -
 shell_exec:
     cmp  byte [cmd_len], 0
     je   .done
 
-    ; ── Exact-match commands ─────────────────────────────────────────────
+    ; - Exact-match commands -
     mov  si, str_cmd_help
     call strcmp_buf
     je   cmd_help
@@ -114,12 +114,12 @@ shell_exec:
     call strcmp_buf
     je   cmd_ls
 
-    ; ── Prefix-matched commands ──────────────────────────────────────────
+    ; - Prefix-matched commands -
     mov  si, str_pfx_echo
     call startswith
     je   cmd_echo
 
-    mov  si, str_cmd_color_bare  ; "color" with no arg → palette
+    mov  si, str_cmd_color_bare  ; "color" with no arg +' palette
     call strcmp_buf
     je   cmd_color
 
@@ -135,7 +135,7 @@ shell_exec:
     call startswith
     je   cmd_run
 
-    ; ── Unknown command ──────────────────────────────────────────────────
+    ; - Unknown command -
     mov  si, str_err_pre
     mov  bl, ATTR_RED
     call puts_c

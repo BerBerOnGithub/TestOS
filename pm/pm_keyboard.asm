@@ -6,16 +6,16 @@
 ; Handles two shift keys for uppercase/symbols.
 ;
 ; Public interface:
-;   pm_getkey   → AL = ASCII (0 = ignore/non-printable)
-;   pm_readline → reads line into pm_input_buf, sets pm_input_len
+;   pm_getkey   +' AL = ASCII (0 = ignore/non-printable)
+;   pm_readline +' reads line into pm_input_buf, sets pm_input_len
 ; ===========================================================================
 
 [BITS 32]
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_getkey - NON-BLOCKING key check. Returns AL=0 if no key ready.
 ; Only reads keyboard (not mouse) data. Returns 0xFF for PrtSc.
-; ---------------------------------------------------------------------------
+; -
 pm_getkey:
     push ebx
     ; Check if keyboard data is available (bit 0 set, bit 5 clear = keyboard)
@@ -39,13 +39,13 @@ pm_getkey:
     jne  .normal
     mov  byte [pm_e0], 0
 
-    cmp  al, 0x2A            ; fake shift from PrtSc press — ignore
+    cmp  al, 0x2A            ; fake shift from PrtSc press " ignore
     je   .no_key
-    cmp  al, 0xAA            ; fake shift release — ignore
+    cmp  al, 0xAA            ; fake shift release " ignore
     je   .no_key
-    cmp  al, 0xB7            ; PrtSc release — ignore
+    cmp  al, 0xB7            ; PrtSc release " ignore
     je   .no_key
-    cmp  al, 0x37            ; PrtSc press — signal
+    cmp  al, 0x37            ; PrtSc press " signal
     jne  .no_key
     mov  al, 0xFF
     pop  ebx
@@ -61,7 +61,7 @@ pm_getkey:
     cmp  al, 0xB6
     je   .shift_off
 
-    test al, 0x80            ; key release — ignore
+    test al, 0x80            ; key release " ignore
     jnz  .no_key
 
     movzx ebx, al
@@ -91,9 +91,9 @@ pm_getkey:
     pop  ebx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_getkey_block - BLOCKING version (used by text-mode shell only)
-; ---------------------------------------------------------------------------
+; -
 pm_getkey_block:
     push ebx
 .wait:
@@ -103,10 +103,10 @@ pm_getkey_block:
     pop  ebx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_readline - read line from keyboard into pm_input_buf
 ; Result: pm_input_buf = null-terminated string, pm_input_len = length
-; ---------------------------------------------------------------------------
+; -
 pm_readline:
     push eax
     push edi

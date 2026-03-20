@@ -15,9 +15,9 @@
 
 [BITS 16]
 
-; ---------------------------------------------------------------------------
+; -
 ; Driver status table  (1 byte per driver: 1=loaded, 0=unloaded)
-; ---------------------------------------------------------------------------
+; -
 drv_rm_status:
     db 0    ; 0 Screen
     db 0    ; 1 Keyboard
@@ -26,15 +26,15 @@ drv_rm_status:
 
 DRV_RM_COUNT equ 4
 
-; ---------------------------------------------------------------------------
+; -
 ; drv_rm_init - initialise all real-mode drivers at boot
-; ---------------------------------------------------------------------------
+; -
 drv_rm_init:
     push ax
     push bx
     push dx
 
-    ; ── Driver 0: Screen ─────────────────────────────────────────────────
+    ; - Driver 0: Screen -
     ; Set VGA text mode 3 (80x25, 16 colour) to ensure clean state
     mov  ah, 0x00
     mov  al, 0x03
@@ -46,7 +46,7 @@ drv_rm_init:
     int  0x10
     mov  byte [drv_rm_status + 0], 1
 
-    ; ── Driver 1: Keyboard ───────────────────────────────────────────────
+    ; - Driver 1: Keyboard -
     ; Flush any stale keystrokes from the BIOS buffer
 .kbd_flush:
     mov  ah, 0x01
@@ -58,13 +58,13 @@ drv_rm_init:
 .kbd_done:
     mov  byte [drv_rm_status + 1], 1
 
-    ; ── Driver 2: RTC ────────────────────────────────────────────────────
-    ; Just verify INT 1Ah responds — nothing to program
+    ; - Driver 2: RTC -
+    ; Just verify INT 1Ah responds " nothing to program
     mov  ah, 0x02
     int  0x1A
     mov  byte [drv_rm_status + 2], 1
 
-    ; ── Driver 3: Speaker ────────────────────────────────────────────────
+    ; - Driver 3: Speaker -
     ; Ensure speaker gate is off (bits 0+1 of port 0x61 cleared)
     in   al, 0x61
     and  al, 0xFC
@@ -76,22 +76,22 @@ drv_rm_init:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; drv_rm_shutdown - cleanly shut down all real-mode drivers before PM switch
-; ---------------------------------------------------------------------------
+; -
 drv_rm_shutdown:
     push ax
 
-    ; ── Driver 3: Speaker — ensure it's off ──────────────────────────────
+    ; - Driver 3: Speaker " ensure it's off -
     in   al, 0x61
     and  al, 0xFC
     out  0x61, al
     mov  byte [drv_rm_status + 3], 0
 
-    ; ── Driver 2: RTC — nothing to teardown ──────────────────────────────
+    ; - Driver 2: RTC " nothing to teardown -
     mov  byte [drv_rm_status + 2], 0
 
-    ; ── Driver 1: Keyboard — flush buffer ────────────────────────────────
+    ; - Driver 1: Keyboard " flush buffer -
 .flush:
     mov  ah, 0x01
     int  0x16
@@ -102,15 +102,15 @@ drv_rm_shutdown:
 .flush_done:
     mov  byte [drv_rm_status + 1], 0
 
-    ; ── Driver 0: Screen — mark unloaded (PM will take over VGA directly) ─
+    ; - Driver 0: Screen " mark unloaded (PM will take over VGA directly) -
     mov  byte [drv_rm_status + 0], 0
 
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; cmd_drivers - display real-mode driver status table
-; ---------------------------------------------------------------------------
+; -
 cmd_drivers:
     push ax
     push bx
@@ -172,16 +172,16 @@ cmd_drivers:
     call puts_c
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Strings
-; ---------------------------------------------------------------------------
+; -
 str_drv_hdr:
     db 13, 10
-    db ' +--------------------+----------+', 13, 10
+    db ' -', 13, 10
     db ' | Driver             | Status   |', 13, 10
-    db ' +--------------------+----------+', 13, 10, 0
+    db ' -', 13, 10, 0
 str_drv_footer:
-    db ' +--------------------+----------+', 0
+    db ' -', 0
 str_drv_screen:   db ' | Screen (INT 10h)   | ', 0
 str_drv_kbd:      db ' | Keyboard (INT 16h) | ', 0
 str_drv_rtc:      db ' | RTC (INT 1Ah)      | ', 0

@@ -26,141 +26,19 @@ SCR_PIX     equ 307200
 BMP_HDR_SZ  equ 1078
 BMP_FILE_SZ equ 308278
 
-; ---------------------------------------------------------------------------
+; -
 ; wm_screenshot_capture
 ; Called on PrtSc. Copies GFX_SHADOW (RAM) -> 0x600000.
 ; Fast RAM->RAM copy. No MMIO involved.
-; ---------------------------------------------------------------------------
+; -
 wm_screenshot_capture:
     pusha
-
-    ; Print shadow bytes at rows 0,50,100,200,400 to serial
-    ; Format: R<row>=<hex>
-    push eax
-    push edx
-    push ecx
-    ; print 'S:' prefix
-    mov  dx, 0x3FD
-.sp: in al, dx
-    test al, 0x20
-    jz   .sp
-    mov  dx, 0x3F8
-    mov  al, 'S'
-    out  dx, al
-    mov  dx, 0x3FD
-.sq: in al, dx
-    test al, 0x20
-    jz   .sq
-    mov  dx, 0x3F8
-    mov  al, ':'
-    out  dx, al
-    ; print first byte of each row: 0, 50, 100, 200, 400
-    mov  esi, scr_row_offsets
-    mov  ecx, 5
-.rowpr:
-    lodsd
-    movzx eax, byte [GFX_SHADOW + eax]
-    ; print as hex
-    push eax
-    shr  al, 4
-    add  al, '0'
-    cmp  al, '9'
-    jbe  .h1
-    add  al, 7
-.h1:
-    mov  ah, al
-    mov  dx, 0x3FD
-.w1: in al, dx
-    test al, 0x20
-    jz   .w1
-    mov  dx, 0x3F8
-    mov  al, ah
-    out  dx, al
-    pop  eax
-    and  al, 0x0F
-    add  al, '0'
-    cmp  al, '9'
-    jbe  .h2
-    add  al, 7
-.h2:
-    mov  ah, al
-    mov  dx, 0x3FD
-.w2: in al, dx
-    test al, 0x20
-    jz   .w2
-    mov  dx, 0x3F8
-    mov  al, ah
-    out  dx, al
-    ; space
-    mov  dx, 0x3FD
-.w3: in al, dx
-    test al, 0x20
-    jz   .w3
-    mov  dx, 0x3F8
-    mov  al, ' '
-    out  dx, al
-    loop .rowpr
-    ; newline
-    mov  dx, 0x3FD
-.wn: in al, dx
-    test al, 0x20
-    jz   .wn
-    mov  dx, 0x3F8
-    mov  al, 10
-    out  dx, al
-    pop  ecx
-    pop  edx
-    pop  eax
 
     ; capture shadow -> 0x600000
     mov  esi, GFX_SHADOW
     mov  edi, 0x600000
     mov  ecx, 76800
     rep  movsd
-
-    ; verify 0x600000[50*640] after copy
-    push eax
-    push edx
-    movzx eax, byte [0x600000 + 50*640]
-    ; print as hex
-    push eax
-    shr  al, 4
-    and  al, 0xF
-    add  al, '0'
-    cmp  al, '9'
-    jbe  .vh1
-    add  al, 7
-.vh1: mov ah,al
-    mov dx,0x3FD
-.vw1: in al,dx
-    test al,0x20
-    jz .vw1
-    mov dx,0x3F8
-    mov al,ah
-    out dx,al
-    pop eax
-    and al,0xF
-    add al,'0'
-    cmp al,'9'
-    jbe .vh2
-    add al,7
-.vh2: mov ah,al
-    mov dx,0x3FD
-.vw2: in al,dx
-    test al,0x20
-    jz .vw2
-    mov dx,0x3F8
-    mov al,ah
-    out dx,al
-    mov dx,0x3FD
-.vn: in al,dx
-    test al,0x20
-    jz .vn
-    mov dx,0x3F8
-    mov al,10
-    out dx,al
-    pop edx
-    pop eax
 
     mov  byte [scr_pending], 1
 
@@ -171,13 +49,6 @@ wm_screenshot_capture:
 .done:
     popa
     ret
-
-scr_row_offsets:
-    dd 0*640
-    dd 50*640
-    dd 100*640
-    dd 200*640
-    dd 400*640
 
 wm_notify:
     push eax
@@ -211,9 +82,9 @@ wm_notify:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; wm_notify_tick - call from wm_update_contents each tick
-; ---------------------------------------------------------------------------
+; -
 wm_notify_tick:
     push eax
     push ebx
@@ -242,11 +113,72 @@ wm_notify_tick:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Data
-; ---------------------------------------------------------------------------
+; -
 notify_expire:   dd 0
 notify_msg:      dd 0
+; -
+; scr_counter_init - scan fsd_dir_buf for highest scrNNNN and seed counter
+; -
+scr_counter_init:
+    push eax
+    push ebx
+    push ecx
+    push esi
+
+    mov  dword [scr_counter], 0
+    cmp  byte [fsd_ready], 1
+    jne  .done
+
+    mov  esi, fsd_dir_buf
+    mov  ecx, FSD_MAX_ENT
+.scan:
+    test ecx, ecx
+    jz   .done
+    cmp  dword [esi + 24], FSD_FLAG_USED
+    jne  .next
+
+    ; check if name starts with "scr" and has 4 digits after
+    cmp  byte [esi + 0], 0x73   ; s
+    jne  .next
+    cmp  byte [esi + 1], 0x63   ; c
+    jne  .next
+    cmp  byte [esi + 2], 0x72   ; r
+    jne  .next
+
+    ; parse 4-digit number from bytes 3-6
+    movzx eax, byte [esi + 3]
+    sub  eax, 0x30
+    imul eax, 1000
+    movzx ebx, byte [esi + 4]
+    sub  ebx, 0x30
+    imul ebx, 100
+    add  eax, ebx
+    movzx ebx, byte [esi + 5]
+    sub  ebx, 0x30
+    imul ebx, 10
+    add  eax, ebx
+    movzx ebx, byte [esi + 6]
+    sub  ebx, 0x30
+    add  eax, ebx
+
+    cmp  eax, [scr_counter]
+    jle  .next
+    mov  [scr_counter], eax
+
+.next:
+    add  esi, FSD_ENT_SZ
+    dec  ecx
+    jmp  .scan
+
+.done:
+    pop  esi
+    pop  ecx
+    pop  ebx
+    pop  eax
+    ret
+
 scr_counter:     dd 0
 scr_name:        db 'scr0001', 0
 scr_msg_ok_cap:  db 'Screenshot captured! Type savescr to save.', 0

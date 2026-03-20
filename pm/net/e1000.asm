@@ -5,10 +5,10 @@
 ; BAR0 is discovered by pci_init (pci.asm) and stored in pci_e1000_bar0.
 ;
 ; Memory layout (above 1MB, safe in PM):
-;   E1000_TX_DESC_BASE  0x00101000  TX descriptor ring (16 × 16 bytes)
-;   E1000_RX_DESC_BASE  0x00101100  RX descriptor ring (16 × 16 bytes)
-;   E1000_TX_BUF_BASE   0x00102000  TX packet buffers  (16 × 2048 bytes)
-;   E1000_RX_BUF_BASE   0x00112000  RX packet buffers  (16 × 2048 bytes)
+;   E1000_TX_DESC_BASE  0x00101000  TX descriptor ring (16  16 bytes)
+;   E1000_RX_DESC_BASE  0x00101100  RX descriptor ring (16  16 bytes)
+;   E1000_TX_BUF_BASE   0x00102000  TX packet buffers  (16  2048 bytes)
+;   E1000_RX_BUF_BASE   0x00112000  RX packet buffers  (16  2048 bytes)
 ;
 ; TX/RX descriptor format (16 bytes each):
 ;   [0]  dd  buffer address low
@@ -22,17 +22,17 @@
 ;
 ; Public interface:
 ;   e1000_init        - init NIC, setup rings, read MAC
-;   e1000_send        - ESI=packet ptr, ECX=length → send frame
-;   e1000_recv        - EDI=buffer ptr → ECX=length (0 if no packet)
+;   e1000_send        - ESI=packet ptr, ECX=length -> send frame
+;   e1000_recv        - EDI=buffer ptr -> ECX=length (0 if no packet)
 ;   e1000_read_mac    - read MAC into e1000_mac (6 bytes)
 ;   cmd_ifconfig      - shell: show MAC, link status
 ; ===========================================================================
 
 [BITS 32]
 
-; ---------------------------------------------------------------------------
+; -
 ; e1000 register offsets from BAR0
-; ---------------------------------------------------------------------------
+; -
 E1000_CTRL      equ 0x0000   ; Device Control
 E1000_STATUS    equ 0x0008   ; Device Status
 E1000_EECD      equ 0x0010   ; EEPROM/Flash Control
@@ -65,7 +65,7 @@ E1000_CTRL_ASDE equ (1 << 5)   ; auto-speed detection
 ; RCTL bits
 E1000_RCTL_EN   equ (1 << 1)
 E1000_RCTL_BAM  equ (1 << 15)  ; broadcast accept
-E1000_RCTL_BSIZE_2048 equ 0    ; bits 17:16 = 00 → 2048 byte buffers
+E1000_RCTL_BSIZE_2048 equ 0    ; bits 17:16 = 00 -> 2048 byte buffers
 E1000_RCTL_SECRC equ (1 << 26) ; strip ethernet CRC
 
 ; TCTL bits
@@ -97,11 +97,11 @@ E1000_RX_DESC_BASE equ 0x00101100
 E1000_TX_BUF_BASE  equ 0x00102000
 E1000_RX_BUF_BASE  equ 0x00112000
 
-; ---------------------------------------------------------------------------
+; -
 ; e1000_mmio_read  - read 32-bit register
 ; In:  EDX = register offset
 ; Out: EAX = value
-; ---------------------------------------------------------------------------
+; -
 e1000_mmio_read:
     push edx
     add  edx, [pci_e1000_bar0]
@@ -109,10 +109,10 @@ e1000_mmio_read:
     pop  edx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; e1000_mmio_write - write 32-bit register
 ; In:  EDX = register offset, EAX = value
-; ---------------------------------------------------------------------------
+; -
 e1000_mmio_write:
     push edx
     add  edx, [pci_e1000_bar0]
@@ -120,12 +120,12 @@ e1000_mmio_write:
     pop  edx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; e1000_eeprom_read - read one 16-bit word from EEPROM
 ; In:  AL = EEPROM word address
 ; Out: AX = 16-bit word
 ; QEMU 82540EM: start bit = bit 0, done bit = bit 4, data = bits 31:16
-; ---------------------------------------------------------------------------
+; -
 e1000_eeprom_read:
     push ecx
     push edx
@@ -136,7 +136,7 @@ e1000_eeprom_read:
     mov  edx, E1000_EERD
     call e1000_mmio_write
 
-    ; poll done bit (bit 4) — up to 100000 iterations
+    ; poll done bit (bit 4) - up to 100000 iterations
     mov  ecx, 100000
 .poll:
     mov  edx, E1000_EERD
@@ -144,7 +144,7 @@ e1000_eeprom_read:
     test eax, (1 << 4)
     jnz  .done
     loop .poll
-    ; timed out — return 0
+    ; timed out - return 0
     xor  eax, eax
     jmp  .ret
 
@@ -156,23 +156,23 @@ e1000_eeprom_read:
     pop  ecx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; e1000_read_mac - read MAC address into e1000_mac[6]
 ;
 ; Strategy:
-;   1. Read RAL0/RAH0 — QEMU pre-loads the MAC here at power-on.
+;   1. Read RAL0/RAH0 - QEMU pre-loads the MAC here at power-on.
 ;      If RAL0 is non-zero, use it directly (fastest, most reliable).
 ;   2. Fall back to EEPROM words 0/1/2 if RAL0 is zero.
-; ---------------------------------------------------------------------------
+; -
 e1000_read_mac:
     push eax
     push ebx
 
-    ; ── Try RAL0/RAH0 first ───────────────────────────────────────────────
+    ; - Try RAL0/RAH0 first -
     mov  edx, E1000_RAL0
     call e1000_mmio_read
     test eax, eax
-    jz   .try_eeprom         ; zero → not pre-loaded, try EEPROM
+    jz   .try_eeprom         ; zero -> not pre-loaded, try EEPROM
 
     ; RAL0 = MAC bytes 3:2:1:0
     mov  [e1000_mac + 0], al
@@ -218,23 +218,23 @@ e1000_read_mac:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; e1000_init - full NIC initialisation sequence
-; ---------------------------------------------------------------------------
+; -
 e1000_init:
     push eax
     push ecx
     push edx
     push edi
 
-    ; ── 1. Check BAR0 is valid ────────────────────────────────────────────
+    ; - 1. Check BAR0 is valid -
     cmp  dword [pci_e1000_bar0], 0
     je   .no_nic
 
-    ; ── 2. Read MAC before reset (reset clears RAL0) ──────────────────
+    ; - 2. Read MAC before reset (reset clears RAL0) -
     call e1000_read_mac
 
-    ; ── 2. Reset the NIC ─────────────────────────────────────────────────
+    ; - 2. Reset the NIC -
     mov  edx, E1000_CTRL
     call e1000_mmio_read
     or   eax, E1000_CTRL_RST
@@ -246,14 +246,14 @@ e1000_init:
 .rst_wait:
     loop .rst_wait
 
-    ; ── 3. Set link up, auto-speed ───────────────────────────────────────
+    ; - 3. Set link up, auto-speed -
     mov  edx, E1000_CTRL
     call e1000_mmio_read
     or   eax, E1000_CTRL_SLU | E1000_CTRL_ASDE
     mov  edx, E1000_CTRL
     call e1000_mmio_write
 
-    ; poll STATUS.LU (bit 1) — wait for link up
+    ; poll STATUS.LU (bit 1) - wait for link up
     mov  ecx, 200000
 .link_wait:
     mov  edx, E1000_STATUS
@@ -263,7 +263,7 @@ e1000_init:
     loop .link_wait
 .link_up:
 
-; ── 1b. Enable Bus Master ─────────────────────────────────────────────
+; - 1b. Enable Bus Master -
     push eax
     push edx
     mov  eax, 0x80001804
@@ -282,7 +282,7 @@ e1000_init:
     pop  edx
     pop  eax
 
-    ; ── DEBUG: read back PCI Command register and print it ───────────────
+    ; - DEBUG: read back PCI Command register and print it -
     push eax
     push edx
     push ebx
@@ -297,12 +297,12 @@ e1000_init:
     pop  edx
     pop  eax
 
-    ; ── 5. Disable all interrupts ────────────────────────────────────────
+    ; - 5. Disable all interrupts -
     mov  eax, 0xFFFFFFFF
     mov  edx, E1000_IMC
     call e1000_mmio_write
 
-    ; ── 6. Re-program Receive Address register with our MAC ──────────────
+    ; - 6. Re-program Receive Address register with our MAC -
     mov  eax, [e1000_mac]
     mov  edx, E1000_RAL0
     call e1000_mmio_write
@@ -312,7 +312,7 @@ e1000_init:
     mov  edx, E1000_RAH0
     call e1000_mmio_write
 
-    ; ── 7. Clear multicast table ─────────────────────────────────────────
+    ; - 7. Clear multicast table -
     xor  eax, eax
     mov  ecx, 128
     mov  edx, E1000_MTA
@@ -321,7 +321,7 @@ e1000_init:
     add  edx, 4
     loop .mta_clear
 
-    ; ── 8. Setup TX descriptor ring ──────────────────────────────────────
+    ; - 8. Setup TX descriptor ring -
     mov  edi, E1000_TX_DESC_BASE
     mov  ecx, (E1000_NUM_TX_DESC * 16) / 4
     xor  eax, eax
@@ -362,7 +362,7 @@ e1000_init:
     mov  edx, E1000_TDT
     call e1000_mmio_write
 
-    ; ── 9. Setup RX descriptor ring ──────────────────────────────────────
+    ; - 9. Setup RX descriptor ring -
     mov  edi, E1000_RX_DESC_BASE
     mov  ecx, (E1000_NUM_RX_DESC * 16) / 4
     xor  eax, eax
@@ -404,7 +404,7 @@ e1000_init:
     call e1000_mmio_write
     mov  dword [e1000_rx_tail], 0
 
-    ; ── 10. Enable transmitter ───────────────────────────────────────────
+    ; - 10. Enable transmitter -
     mov  eax, E1000_TCTL_EN | E1000_TCTL_PSP | E1000_TCTL_CT | E1000_TCTL_COLD
     mov  edx, E1000_TCTL
     call e1000_mmio_write
@@ -413,7 +413,7 @@ e1000_init:
     mov  edx, E1000_TIPG
     call e1000_mmio_write
 
-    ; ── 11. Enable receiver ──────────────────────────────────────────────
+    ; - 11. Enable receiver -
     mov  eax, E1000_RCTL_EN | E1000_RCTL_BAM | E1000_RCTL_SECRC
     mov  edx, E1000_RCTL
     call e1000_mmio_write
@@ -430,12 +430,12 @@ e1000_init:
     pop  ecx
     pop  eax
     ret
-; ---------------------------------------------------------------------------
+; -
 ; e1000_send - transmit one Ethernet frame
 ; In:  ESI = pointer to frame data
 ;      ECX = frame length in bytes
 ; Out: CF=0 success, CF=1 error (NIC not ready or TX ring full)
-; ---------------------------------------------------------------------------
+; -
 e1000_send:
     push eax
     push ebx
@@ -472,18 +472,18 @@ e1000_send:
     ; copy data
     push edi
     mov  edi, eax
-    rep  movsb               ; ESI → EDI, ECX bytes
+    rep  movsb               ; ESI -> EDI, ECX bytes
     pop  edi
 
     ; restore ECX (it was consumed by movsb)
     ; ECX is now 0, so re-read from stack... instead save length before copy
-    ; Actually we need to save ECX before the movsb — fix:
-    ; (Length was in ECX at entry, movsb consumed it — we saved it via push at top)
+    ; Actually we need to save ECX before the movsb - fix:
+    ; (Length was in ECX at entry, movsb consumed it - we saved it via push at top)
     ; Get length back from [esp + 8] area... simpler: we saved ECX on stack at push ecx
     mov  cx, [esp + 4]       ; length from original ECX push
     ; Actually the stack at this point:
     ; esp+0  = edi save
-    ; esp+4  = esi save (from push esi above)  wait — need to recount
+    ; esp+4  = esi save (from push esi above)  wait - need to recount
     ; Let's just re-read from the descriptor's buffer and accept ECX=0 issue
     ; CORRECT APPROACH: save length to local var before movsb
     mov  ax, [e1000_tx_len_tmp]  ; we'll store it before movsb
@@ -519,10 +519,10 @@ e1000_send:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; e1000_send_frame - cleaner wrapper that saves length before movsb
 ; In:  ESI = frame pointer, ECX = length
-; ---------------------------------------------------------------------------
+; -
 ; ===========================================================================
 ; PATCH FOR: pm/net/e1000.asm
 ; Replace the entire e1000_send_frame function with this debug version.
@@ -532,7 +532,7 @@ e1000_send:
 ;   'R' = e1000_ready check passed
 ;   'D' = descriptor DD check passed (slot is free)
 ;   'C' = frame copy done, descriptor filled
-;   'W' = TDT write done — NIC has been kicked
+;   'W' = TDT write done - NIC has been kicked
 ;   'E' = error exit (ready=0 or DD not set)
 ;
 ; After running ping/netdbg, the letters on screen tell you exactly
@@ -692,7 +692,7 @@ e1000_send_frame:
     pop  ebx
     pop  eax
     ret
-; ---------------------------------------------------------------------------
+; -
 ; e1000_recv - check for received packet, copy to buffer
 ; In:  EDI = destination buffer pointer
 ; Out: ECX = number of bytes received (0 = no packet)
@@ -703,7 +703,7 @@ e1000_send_frame:
 ;   We poll [slot+11] DD bit.  When set, a packet has landed there.
 ;   We copy it out, clear DD, give that same slot index back to the NIC
 ;   via RDT, then advance e1000_rx_tail to the next slot.
-; ---------------------------------------------------------------------------
+; -
 e1000_recv:
     push eax
     push ebx
@@ -725,7 +725,7 @@ e1000_recv:
     add  esi, eax
 
     ; Poll DD bit (bit 0) of STATUS byte at offset +11
-    ; (NOT +12 — that is the errors byte)
+    ; (NOT +12 - that is the errors byte)
     test byte [esi + 12], E1000_RXD_STAT_DD
     jz   .no_packet          ; NIC hasn't written here yet
 
@@ -748,7 +748,7 @@ e1000_recv:
     ; Clear STATUS byte at +11 so we don't re-process this slot
     mov  byte [esi + 12], 0
 
-    ; Save the slot index we just consumed — this goes back to RDT
+    ; Save the slot index we just consumed - this goes back to RDT
     mov  edx, ebx            ; EDX = consumed slot index
 
     ; Advance software tail to next slot
@@ -783,9 +783,9 @@ e1000_recv:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; cmd_ifconfig - display MAC address, link status, NIC state
-; ---------------------------------------------------------------------------
+; -
 cmd_ifconfig:
     push eax
     push ebx
@@ -901,9 +901,9 @@ cmd_ifconfig:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; cmd_nicdbg - dump raw e1000 registers for debugging
-; ---------------------------------------------------------------------------
+; -
 cmd_nicdbg:
     push eax
     push edx
@@ -1017,9 +1017,9 @@ cmd_nicdbg:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Data
-; ---------------------------------------------------------------------------
+; -
 e1000_ready:      db 0
 e1000_mac:        times 6 db 0
 e1000_rx_tail:    dd 0

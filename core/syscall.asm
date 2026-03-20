@@ -1,8 +1,8 @@
 ; ===========================================================================
-; core/syscall.asm - ClaudeOS syscall handler
+; core/syscall.asm - NatureOS syscall handler
 ;
 ; Entry point is at fixed address 0x0000:0x8100 (trampoline in kernel.asm).
-; Apps call it via far call — no IVT, no interrupt, no BIOS conflicts.
+; Apps call it via far call " no IVT, no interrupt, no BIOS conflicts.
 ;
 ;   AH=0x00  print_str    DS:SI = string, BL = color
 ;   AH=0x01  print_char   AL = char, BL = color

@@ -35,7 +35,7 @@ IMG_SIZE     = TOTAL_SECTS * 512
 OUTPUT = 'data.img'
 
 if os.path.exists(OUTPUT):
-    print(f'[mkdata] {OUTPUT} already exists — skipping (delete to recreate)')
+    print(f'[mkdata] {OUTPUT} already exists - skipping (delete to recreate)')
 else:
     img = bytearray(IMG_SIZE)
 

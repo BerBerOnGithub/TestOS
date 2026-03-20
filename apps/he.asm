@@ -1,5 +1,5 @@
 ; ===========================================================================
-; apps/hello.asm - Hello World using the ClaudeOS SDK
+; apps/hello.asm - Hello World using the NatureOS SDK
 ; ===========================================================================
 [BITS 16]
 [ORG 0x0000]
@@ -15,4 +15,4 @@
 
     retf
 
-msg: db ' Hello from a ClaudeOS app!', 13, 10, 0
+msg: db ' Hello from a NatureOS app!', 13, 10, 0

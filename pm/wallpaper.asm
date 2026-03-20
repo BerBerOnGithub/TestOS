@@ -1,10 +1,10 @@
 ; ===========================================================================
-; pm/wallpaper.asm  —  Desktop wallpaper loader + blitter
+; pm/wallpaper.asm  "  Desktop wallpaper loader + blitter
 ;
 ; Loads any 8-bit indexed BMP from ClaudeFS without modifying it.
 ; Palette split at runtime:
-;   DAC slots  0-15  : system colours — NEVER touched
-;   DAC slots 16-255 : wallpaper colours — BMP palette entries remapped here
+;   DAC slots  0-15  : system colours " NEVER touched
+;   DAC slots 16-255 : wallpaper colours " BMP palette entries remapped here
 ;
 ; A 256-byte remap table (WP_REMAP) is built at load time:
 ;   remap[bmp_index] = 16 + bmp_index  (clamped to 255)
@@ -19,20 +19,20 @@
 ;       (read-only), so we must use 0x100000+.
 ;
 ; Public:
-;   wallpaper_load  — call once at startup after FS is ready
-;   wallpaper_draw  — blit to framebuffer as bottom layer
+;   wallpaper_load  " call once at startup after FS is ready
+;   wallpaper_draw  " blit to framebuffer as bottom layer
 ; ===========================================================================
 
 [BITS 32]
 
-WP_BUF   equ 0x100000      ; 640x480 = 300KB pixel buffer (extended memory)
-WP_REMAP equ 0x14B000      ; 256-byte remap table (immediately after WP_BUF)
+WP_BUF   equ 0x200000      ; 640x480 = 300KB pixel buffer (moved above e1000 buffers which end at 0x11A000)
+WP_REMAP equ 0x24B000      ; 256-byte remap table (immediately after WP_BUF)
 
-; ---------------------------------------------------------------------------
+; -
 wallpaper_load:
     pusha
 
-    ; always build remap table first — icons/cursor depend on it
+    ; always build remap table first " icons/cursor depend on it
     ; even if wallpaper load fails, remap must be valid
     mov  edi, WP_REMAP
     xor  ecx, ecx
@@ -81,7 +81,7 @@ wallpaper_load:
     mov  eax, [edi+10]
     mov  [wp_pixoff], eax
 
-    ; --- load DAC slots 16-255 from BMP palette entries 0-239 ---
+    ; - load DAC slots 16-255 from BMP palette entries 0-239 -
     ; BMP palette at file+54, each entry B G R 0 (4 bytes)
     ; Entry N goes to DAC slot 16+N
     mov  esi, [wp_file]
@@ -110,7 +110,7 @@ wallpaper_load:
     dec  ecx
     jnz  .pal_loop
 
-    ; --- decode BMP (bottom-up) into WP_BUF (top-down), remapping pixels ---
+    ; - decode BMP (bottom-up) into WP_BUF (top-down), remapping pixels -
     mov  edi, WP_BUF
     mov  edx, [wp_h]
     dec  edx                    ; start at last BMP row (= top of screen)
@@ -151,7 +151,7 @@ wallpaper_load:
     popa
     ret
 
-; ---------------------------------------------------------------------------
+; -
 wallpaper_draw:
     pusha
 
@@ -232,10 +232,11 @@ wallpaper_draw:
     call fb_fill_rect
 
 .done:
+    call wm_draw_sysinfo            ; draw stats panel over wallpaper, under windows
     popa
     ret
 
-; ---------------------------------------------------------------------------
+; -
 wp_loaded:   db 0
 wp_file:     dd 0
 wp_w:        dd 0

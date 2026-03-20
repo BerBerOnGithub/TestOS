@@ -24,11 +24,11 @@
 
 [BITS 32]
 
-; ---------------------------------------------------------------------------
+; -
 ; fb_draw_char
-; Writes directly to framebuffer — no fb_draw_pixel calls
+; Writes directly to framebuffer " no fb_draw_pixel calls
 ; In: AL=char, EBX=x, ECX=y, DL=fg, DH=bg (0xFF=transparent)
-; ---------------------------------------------------------------------------
+; -
 fb_draw_char:
     push eax
     push ebx
@@ -111,9 +111,9 @@ fb_draw_char:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; fb_draw_string
-; ---------------------------------------------------------------------------
+; -
 fb_draw_string:
     push eax
     push ecx
@@ -136,9 +136,9 @@ fb_draw_string:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Scratch vars
-; ---------------------------------------------------------------------------
+; -
 fc_x:     dd 0
 fc_y:     dd 0
 fc_fg:    db 0
@@ -149,9 +149,9 @@ fc_row:   dd 0
 fc_col:   dd 0
 fc_glyph: dd 0
 
-; ---------------------------------------------------------------------------
-; CP437 8x8 font — 256 glyphs x 8 bytes = 2048 bytes, MSB = leftmost pixel
-; ---------------------------------------------------------------------------
+; -
+; CP437 8x8 font " 256 glyphs x 8 bytes = 2048 bytes, MSB = leftmost pixel
+; -
 font_data:
     db 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00  ; 00
     db 0x7E,0x81,0xA5,0x81,0xBD,0x99,0x81,0x7E  ; 01
@@ -284,12 +284,12 @@ font_data:
     times 128*8 db 0x00                          ; 80-FF blank
 
 ; String for title bar test
-pm_str_title: db 'ClaudeOS v2.0', 0
+pm_str_title: db 'NatureOS v2.0', 0
 
-; ---------------------------------------------------------------------------
+; -
 ; fb_draw_char_scaled
 ; In: AL=char, EBX=x, ECX=y, DL=fg, DH=bg (0xFF=transparent), [fcs_scale]=N
-; ---------------------------------------------------------------------------
+; -
 fb_draw_char_scaled:
     pusha
     movzx eax, al

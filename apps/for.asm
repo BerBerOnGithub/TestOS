@@ -39,22 +39,22 @@ fortune_table:
     dw fort5, fort6, fort7, fort8, fort9
 
 fort0: db 'The best way to predict the future is to invent it.', 13, 10
-       db '   -- Alan Kay', 0
+       db '   - Alan Kay', 0
 fort1: db 'Any sufficiently advanced technology is indistinguishable from magic.', 13, 10
-       db '   -- Arthur C. Clarke', 0
+       db '   - Arthur C. Clarke', 0
 fort2: db 'First, solve the problem. Then, write the code.', 13, 10
-       db '   -- John Johnson', 0
+       db '   - John Johnson', 0
 fort3: db 'Programs must be written for people to read, and only incidentally', 13, 10
-       db '   for machines to execute.  -- Abelson & Sussman', 0
+       db '   for machines to execute.  - Abelson & Sussman', 0
 fort4: db 'It is not enough to do your best; you must know what to do,', 13, 10
-       db '   and then do your best.  -- W. Edwards Deming', 0
+       db '   and then do your best.  - W. Edwards Deming', 0
 fort5: db 'The only way to go fast is to go well.', 13, 10
-       db '   -- Robert C. Martin', 0
+       db '   - Robert C. Martin', 0
 fort6: db 'Simplicity is the soul of efficiency.', 13, 10
-       db '   -- Austin Freeman', 0
+       db '   - Austin Freeman', 0
 fort7: db 'Good code is its own best documentation.', 13, 10
-       db '   -- Steve McConnell', 0
+       db '   - Steve McConnell', 0
 fort8: db 'In theory there is no difference between theory and practice.', 13, 10
-       db '   In practice there is.  -- Jan L.A. van de Snepscheut', 0
+       db '   In practice there is.  - Jan L.A. van de Snepscheut', 0
 fort9: db 'The computer was born to solve problems that did not exist before.', 13, 10
-       db '   -- Bill Gates', 0
+       db '   - Bill Gates', 0

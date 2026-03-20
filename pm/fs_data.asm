@@ -18,13 +18,13 @@
 ;   Sectors 5+:     File data
 ;
 ; Public:
-;   fsd_init        — read header+dir from disk into RAM cache
-;   fsd_find        — ESI=name → CF=0: EAX=entry ptr; CF=1: not found
-;   fsd_read_file   — EAX=entry ptr, EDI=dest → ECX=bytes read
-;   fsd_create      — ESI=name, EDI=data, ECX=size → CF=0 ok, CF=1 full/err
-;   fsd_delete      — ESI=name → CF=0 ok, CF=1 not found
-;   fsd_list        — EDI=callback(entry_ptr): called for each used entry
-;   fsd_ready       db — 1 if disk found and valid
+;   fsd_init        - read header+dir from disk into RAM cache
+;   fsd_find        - ESI=name - - CF=0: EAX=entry ptr; CF=1: not found
+;   fsd_read_file   - EAX=entry ptr, EDI=dest - - ECX=bytes read
+;   fsd_create      - ESI=name, EDI=data, ECX=size - - CF=0 ok, CF=1 full/err
+;   fsd_delete      - ESI=name - - CF=0 ok, CF=1 not found
+;   fsd_list        - EDI=callback(entry_ptr): called for each used entry
+;   fsd_ready       db - 1 if disk found and valid
 ; ===========================================================================
 
 [BITS 32]
@@ -43,7 +43,7 @@ FSD_ALLOC_UNIT  equ 8            ; allocate in 8-sector (4KB) chunks
 FSD_FLAG_FREE   equ 0
 FSD_FLAG_USED   equ 1
 
-; ── fsd_init ──────────────────────────────────────────────────────────────────
+; - fsd_init -
 ; Read header + directory into RAM. Sets fsd_ready.
 fsd_init:
     pusha
@@ -52,7 +52,7 @@ fsd_init:
     cmp  byte [bd_ready], 1
     jne  .done
 
-    ; header and directory already loaded by stage2 into 0x40000
+    ; header and directory loaded by stage2 into 0x80000
     ; copy header (512 bytes) into fsd_hdr_buf
     mov  esi, 0x80000
     mov  edi, fsd_hdr_buf
@@ -68,7 +68,7 @@ fsd_init:
     mov  [fsd_used], eax
 
     ; copy directory (4 sectors = 2048 bytes) into fsd_dir_buf
-    mov  esi, 0x80200           ; stage2 put dir at header+512
+    mov  esi, 0x80200
     mov  edi, fsd_dir_buf
     mov  ecx, 2048 / 4
     rep  movsd
@@ -79,7 +79,7 @@ fsd_init:
     popa
     ret
 
-; ── fsd_flush_dir ─────────────────────────────────────────────────────────────
+; - fsd_flush_dir -
 ; Write directory + header back to disk. Internal.
 fsd_flush_dir:
     pusha
@@ -103,7 +103,7 @@ fsd_flush_dir:
     popa
     ret
 
-; ── fsd_find ──────────────────────────────────────────────────────────────────
+; - fsd_find -
 ; In:  ESI = null-terminated filename
 ; Out: CF=0 EAX = pointer to directory entry in fsd_dir_buf
 ;      CF=1 not found
@@ -164,7 +164,7 @@ fsd_find:
     pop  ebx
     ret
 
-; ── fsd_read_file ─────────────────────────────────────────────────────────────
+; - fsd_read_file -
 ; In:  EAX = pointer to directory entry (from fsd_find)
 ;      EDI = destination buffer
 ; Out: ECX = bytes read
@@ -195,7 +195,7 @@ fsd_read_file:
     pop  eax
     ret
 
-; ── fsd_alloc_sector ──────────────────────────────────────────────────────────
+; - fsd_alloc_sector -
 ; Find a free run of sectors starting at FSD_DATA_START.
 ; In:  ECX = sectors needed
 ; Out: EAX = start sector, CF=1 if disk full
@@ -204,9 +204,10 @@ fsd_alloc_sector:
     push ecx
     push edx
     push esi
+    push edi
 
     ; build a simple bitmap of used sectors by scanning directory
-    ; for now: linear allocation — find highest used sector + 1
+    ; for now: linear allocation - find highest used sector + 1
     mov  eax, FSD_DATA_START
     mov  esi, fsd_dir_buf
     mov  ebx, FSD_MAX_ENT
@@ -243,13 +244,14 @@ fsd_alloc_sector:
 .full:
     stc
 .done:
+    pop  edi
     pop  esi
     pop  edx
     pop  ecx
     pop  ebx
     ret
 
-; ── fsd_create ────────────────────────────────────────────────────────────────
+; - fsd_create -
 ; Create a new file on the data disk.
 ; In:  ESI = null-terminated filename (max 15 chars)
 ;      EDI = data buffer
@@ -332,7 +334,7 @@ fsd_create:
     ; write file data to disk
     push eax
     push ecx
-    ; ESI still points to name — need original data ptr
+    ; ESI still points to name - need original data ptr
     ; data is in fsd_write_buf (caller copies there first)
     ; actually: EDI was entry ptr, data ptr in fsd_create_data
     mov  esi, [fsd_create_data]
@@ -360,7 +362,7 @@ fsd_create:
     stc
     ret
 
-; ── fsd_delete ────────────────────────────────────────────────────────────────
+; - fsd_delete -
 ; Delete a file by name.
 ; In:  ESI = null-terminated filename
 ; Out: CF=0 ok, CF=1 not found
@@ -369,7 +371,7 @@ fsd_delete:
     call fsd_find
     jc   .notfound
 
-    ; EAX = entry ptr — zero the flags to mark free
+    ; EAX = entry ptr - zero the flags to mark free
     mov  dword [eax + 24], FSD_FLAG_FREE
     ; zero the name too
     push eax
@@ -395,7 +397,7 @@ fsd_delete:
     stc
     ret
 
-; ── fsd_list ──────────────────────────────────────────────────────────────────
+; - fsd_list -
 ; Call EDI for each used entry. EDI = callback(EAX=entry_ptr).
 fsd_list:
     push eax
@@ -426,7 +428,7 @@ fsd_list:
     pop  eax
     ret
 
-; ── data ──────────────────────────────────────────────────────────────────────
+; - data -
 fsd_ready:      db 0
 fsd_used:       dd 0
 fsd_create_data: dd 0                       ; set before calling fsd_create

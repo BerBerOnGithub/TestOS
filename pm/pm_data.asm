@@ -7,9 +7,9 @@
 
 [BITS 32]
 
-; ---------------------------------------------------------------------------
+; -
 ; Variables
-; ---------------------------------------------------------------------------
+; -
 pm_cursor_x:    dd 0
 pm_cursor_y:    dd 0
 pm_input_len:   dd 0
@@ -25,10 +25,10 @@ pm_probe_cols:  dd 0
 gfx_dirty:  db 0
 scr_pending:  db 0
 
-; ---------------------------------------------------------------------------
-; PS/2 scan code → ASCII tables
+; -
+; PS/2 scan code +' ASCII tables
 ; Unshifted (scan codes 0x00-0x39)
-; ---------------------------------------------------------------------------
+; -
 pm_scancode_table:
     db 0,   27,  '1', '2', '3', '4', '5', '6'   ; 00-07
     db '7', '8', '9', '0', '-', '=', 8,   9      ; 08-0F
@@ -50,15 +50,15 @@ pm_scancode_shift:
     db 'B', 'N', 'M', '<', '>', '?', 0,   '*'    ; 30-37
     db 0,   ' '                                   ; 38-39
 
-; ---------------------------------------------------------------------------
+; -
 ; Shell strings
-; ---------------------------------------------------------------------------
+; -
 pm_banner:
     db 13, 10
-    db ' +--------------------------------------------------+', 13, 10
-    db ' |   ClaudeOS v2.0 - 32-bit Protected Mode Shell   |', 13, 10
+    db ' -', 13, 10
+    db ' |   NatureOS v2.0 - 32-bit Protected Mode Shell   |', 13, 10
     db ' |   No BIOS. Direct hardware access.              |', 13, 10
-    db ' +--------------------------------------------------+', 13, 10
+    db ' -', 13, 10
     db ' Type "help" for commands.', 13, 10, 10, 0
 
 pm_prompt:          db 'PM> ', 0
@@ -89,6 +89,11 @@ pm_str_cmd_files:    db 'files', 0
 pm_str_sw_reset:     db 'reset', 0
 pm_str_timer_usage:  db 'Usage: timer MM:SS', 0
 pm_str_cmd_savescr:  db 'savescr', 0
+pm_str_pfx_dns:      db 'dns ', 0
+pm_str_cmd_ls:       db 'ls', 0
+pm_str_pfx_cat:      db 'cat ', 0
+pm_str_pfx_rm:       db 'rm ', 0
+pm_str_pfx_hexdump:  db 'hexdump ', 0
 
 ; Window manager strings
 pm_str_wm_full:      db 'Max windows open (close one first).', 0
@@ -100,23 +105,23 @@ pm_prev_btn:         db 0
 pm_str_unknown:
     db ' Unknown command. Type "help" for list.', 13, 10, 0
 
-; ---------------------------------------------------------------------------
+; -
 ; Command output strings
-; ---------------------------------------------------------------------------
+; -
 pm_str_exit_msg:
     db 13, 10
     db ' Returning to real mode...', 13, 10, 0
 
 pm_str_help_text:
     db 13, 10
-    db ' +----------------------+----------------------------+', 13, 10
+    db ' -', 13, 10
     db ' |  PM Shell v2.0       |  Command Reference         |', 13, 10
-    db ' +----------------------+----------------------------+', 13, 10
+    db ' -', 13, 10
     db ' | help                 | this screen                |', 13, 10
     db ' | ver                  | version info               |', 13, 10
     db ' | clear                | clear screen               |', 13, 10
     db ' | echo <text>          | print text                 |', 13, 10
-    db ' | calc <n> <op> <n>    | calculator (+,-,*,/)       |', 13, 10
+    db ' | calc <n> <op> <n>    | calculator (-*,/)       |', 13, 10
     db ' | probe                | verify 32-bit PM (hex dump)|', 13, 10
     db ' | drivers              | show loaded PM drivers     |', 13, 10
     db ' | pci                  | list all PCI devices       |', 13, 10
@@ -124,17 +129,22 @@ pm_str_help_text:
     db ' | arp                  | show ARP cache             |', 13, 10
     db ' | arping <ip>          | send ARP request           |', 13, 10
     db ' | ping <ip>            | send ICMP echo (4 packets) |', 13, 10
+    db ' | dns <hostname>       | resolve hostname via DNS   |', 13, 10
     db ' | stopwatch            | stopwatch (run again=start/|', 13, 10
     db ' |                      | stop, "stopwatch reset")   |', 13, 10
     db ' | timer MM:SS          | countdown timer            |', 13, 10
     db ' | files                | open file browser window   |', 13, 10
+    db ' | ls                   | list files (terminal)      |', 13, 10
+    db ' | cat <name>           | print file contents        |', 13, 10
+    db ' | rm <name>            | delete file from data disk |', 13, 10
+    db ' | hexdump <name>       | hex dump of a file         |', 13, 10
     db ' | exit                 | return to real mode        |', 13, 10
     db ' | savescr              | save pending screenshot    |', 13, 10
-    db ' +----------------------+----------------------------+', 13, 10, 10, 0
+    db ' -', 13, 10, 10, 0
 
 pm_str_ver_text:
     db 13, 10
-    db ' ClaudeOS v2.0 - 32-bit Protected Mode', 13, 10
+    db ' NatureOS v2.0 - 32-bit Protected Mode', 13, 10
     db ' Architecture: x86 32-bit', 13, 10
     db ' Screen:       Direct VGA (0xB8000)', 13, 10
     db ' Keyboard:     Direct PS/2 (port 0x60)', 13, 10

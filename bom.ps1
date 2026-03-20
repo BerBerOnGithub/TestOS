@@ -1,6 +1,6 @@
 $ext = @(
-".bat",".cmd",".ps1",".asm",".c",".cpp",".h",".hpp",
-".txt",".py",".js",".ts",".html",".css",".json",".xml"
+".bat-cmd-ps1-asm-c-cpp-h-hpp",
+".txt-py-js-ts-html-css-json-xml"
 )
 
 $scanned = 0
@@ -8,7 +8,7 @@ $fixed = 0
 
 Get-ChildItem -Recurse -File | Where-Object { $ext -contains $_.Extension.ToLower() } | ForEach-Object {
 
-    $scanned++
+    $scanned-
 
     $bytes = [System.IO.File]::ReadAllBytes($_.FullName)
 
@@ -19,7 +19,7 @@ Get-ChildItem -Recurse -File | Where-Object { $ext -contains $_.Extension.ToLowe
 
         Write-Host "Removing BOM:" $_.FullName
         [System.IO.File]::WriteAllBytes($_.FullName, $bytes[3..($bytes.Length-1)])
-        $fixed++
+        $fixed-
     }
 }
 

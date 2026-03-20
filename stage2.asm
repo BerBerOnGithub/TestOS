@@ -1,5 +1,5 @@
 ; ===========================================================================
-; stage2.asm - ClaudeOS Stage 2 Bootloader
+; stage2.asm - NatureOS Stage 2 Bootloader
 ;
 ; CD-ROM INT 13h AH=0x42 uses 2048-byte sectors (not 512).
 ; Layout is aligned to 2048-byte boundaries:
@@ -43,10 +43,10 @@ stage2_start:
     hlt
 .ext_ok:
 
-    ; -----------------------------------------------------------------------
+    ; -
     ; Step 1: Read El Torito Boot Record VD at CD-LBA 17
     ;         to find the boot catalog LBA (at offset 0x47)
-    ; -----------------------------------------------------------------------
+    ; -
     mov  ax, SCRATCH_SEG
     mov  es, ax
     mov  word [buf_off], SCRATCH_OFF
@@ -57,10 +57,10 @@ stage2_start:
     mov  eax, [es:SCRATCH_OFF + 0x47]
     mov  [boot_catalog_lba], eax
 
-    ; -----------------------------------------------------------------------
+    ; -
     ; Step 2: Read boot catalog to find flat image base LBA
     ;         Initial/Default entry at catalog+0x20, LBA field at +0x08
-    ; -----------------------------------------------------------------------
+    ; -
     mov  word [buf_off], SCRATCH_OFF
     mov  eax, [boot_catalog_lba]
     mov  [lba], eax
@@ -70,9 +70,9 @@ stage2_start:
     mov  eax, [es:SCRATCH_OFF + 0x20 + 0x08]
     mov  [base_lba], eax
 
-    ; -----------------------------------------------------------------------
-    ; Step 3: Load kernel → 0x0000:0x8000
-    ; -----------------------------------------------------------------------
+    ; -
+    ; Step 3: Load kernel +' 0x0000:0x8000
+    ; -
     mov  si, msg_kernel
     call puts
     mov  ax, 0x0000
@@ -85,9 +85,9 @@ stage2_start:
     call load_blocks
     jc   .err
 
-    ; -----------------------------------------------------------------------
-    ; Step 4: Load FS → 0x2000:0x0000 = physical 0x20000
-    ; -----------------------------------------------------------------------
+    ; -
+    ; Step 4: Load FS +' 0x2000:0x0000 = physical 0x20000
+    ; -
     mov  si, msg_fs
     call puts
     mov  ax, 0x2000
@@ -100,10 +100,10 @@ stage2_start:
     call load_blocks
     jc   .err
 
-    ; -----------------------------------------------------------------------
-    ; Step 5: Probe data disk for CLFD magic — try drives 0x80..0x83
-    ;         Skip the boot drive. Load 5 sectors → 0x4000:0 = 0x40000
-    ; -----------------------------------------------------------------------
+    ; -
+    ; Step 5: Probe data disk for CLFD magic " try drives 0x80..0x83
+    ;         Skip the boot drive. Load 5 sectors +' 0x4000:0 = 0x40000
+    ; -
     mov  byte [data_drv], 0x80
 .probe_drive:
     cmp  byte [data_drv], 0x84
@@ -164,7 +164,7 @@ stage2_start:
     cli
     hlt
 
-; ---------------------------------------------------------------------------
+; -
 ; load_one_block: load 1 block from [lba] into ES:[buf_off]
 load_one_block:
     mov  byte  [dap.size],    0x10
@@ -183,7 +183,7 @@ load_one_block:
     int  0x13
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; load_blocks: read [count] x 2048-byte blocks starting at [lba]
 ;              into ES:[buf_off], advancing ES by 0x80 each block
 load_blocks:
@@ -205,7 +205,7 @@ load_blocks:
     stc
     ret
 
-; ---------------------------------------------------------------------------
+; -
 puts:
     push ax
     push bx
@@ -222,7 +222,7 @@ puts:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 boot_drive:       db 0
 data_drv:         db 0
 boot_catalog_lba: dd 0
@@ -240,7 +240,7 @@ dap:
 .lba_lo:  dd 0
 .lba_hi:  dd 0
 
-msg_hello:  db 'ClaudeOS stage2', 13, 10, 0
+msg_hello:  db 'NatureOS stage2', 13, 10, 0
 msg_noext:  db 'ERROR: No INT13 ext', 13, 10, 0
 msg_kernel: db 'Loading kernel...', 13, 10, 0
 msg_fs:     db 'Loading FS...', 13, 10, 0

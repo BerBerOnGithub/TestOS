@@ -14,9 +14,9 @@
 [BITS 32]
 %define TERM_BG 0x00
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_cls - clear screen, reset cursor to 0,0
-; ---------------------------------------------------------------------------
+; -
 pm_cls:
     push eax
     push ecx
@@ -32,9 +32,9 @@ pm_cls:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_puts - print null-terminated string at ESI with attr BL
-; ---------------------------------------------------------------------------
+; -
 pm_puts:
     push edx
     mov  dl, bl
@@ -43,27 +43,27 @@ pm_puts:
     pop  edx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_putc - write char AL with attr BL at cursor, advance cursor
-; ---------------------------------------------------------------------------
+; -
 pm_putc:
     call term_putchar    ; AL=char, uses term_col/term_row
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_newline - advance to next line, scroll if at row 25
 ; Always resets X to 0 (CR+LF semantics).
-; ---------------------------------------------------------------------------
+; -
 pm_newline:
     call term_newline
     ret
-; ---------------------------------------------------------------------------
+; -
 ; pm_update_cursor - sync hardware cursor to pm_cursor_x, pm_cursor_y
-; ---------------------------------------------------------------------------
+; -
 pm_update_cursor:
     ret                  ; no-op, terminal has no hardware cursor
 
-; serial_print — print ESI string to COM1 (shows in QEMU -serial stdio)
+; serial_print " print ESI string to COM1 (shows in QEMU -serial stdio)
 serial_print:
     push eax
     push edx

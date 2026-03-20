@@ -17,9 +17,9 @@
 %define PORT_STATUS 0x64
 %define PORT_CMD    0x64
 
-; ---------------------------------------------------------------------------
+; -
 ; mouse_init
-; ---------------------------------------------------------------------------
+; -
 mouse_init:
     pusha
 
@@ -77,9 +77,9 @@ mouse_init:
     jz   .kwr
     ret
 
-; ---------------------------------------------------------------------------
-; mouse_poll  — call every iteration of main loop
-; ---------------------------------------------------------------------------
+; -
+; mouse_poll  " call every iteration of main loop
+; -
 mouse_poll:
     pusha
 .again:
@@ -153,8 +153,8 @@ mouse_poll:
     call  cursor_draw
     ret
 
-; ---------------------------------------------------------------------------
-; cursor_size  —  returns cursor dimension in EAX (12 or 16)
+; -
+; cursor_size  "  returns cursor dimension in EAX (12 or 16)
 cursor_size:
     cmp  byte [cursor_use_bmp], 1
     jne  .small
@@ -164,10 +164,10 @@ cursor_size:
     mov  eax, 12
     ret
 
-; ---------------------------------------------------------------------------
-; cursor_save_bg  — save pixels under cursor into cursor_bg
+; -
+; cursor_save_bg  " save pixels under cursor into cursor_bg
 ; Size depends on cursor_use_bmp (12 or 16).
-; ---------------------------------------------------------------------------
+; -
 cursor_save_bg:
     pusha
     call cursor_size
@@ -262,8 +262,8 @@ cursor_erase:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; cursor_load_bmp  —  load cursor pixels from "cursor" file in ClaudeFS
+; -
+; cursor_load_bmp  "  load cursor pixels from "cursor" file in ClaudeFS
 ;
 ; Reads a 16x16 8bpp BMP.  On success sets cursor_use_bmp=1 and fills
 ; cursor_bmp_pixels[256] with the 16x16 palette-index pixels (top row first).
@@ -278,8 +278,8 @@ cursor_erase:
 ;     +4  dword  width
 ;     +8  dword  height  (positive = bottom-up)
 ;    +28  word   bits per pixel (must be 8)
-;   After header: 256×4 byte palette, then pixel rows (bottom-up)
-; ---------------------------------------------------------------------------
+;   After header: 256-4 byte palette, then pixel rows (bottom-up)
+; -
 cursor_load_bmp:
     push eax
     push ebx
@@ -309,7 +309,7 @@ cursor_load_bmp:
     ; width and height must be 16
     cmp  dword [edi + 18], 16       ; biWidth
     jne  .fail
-    ; biHeight may be negative (top-down) — we only handle positive (bottom-up)
+    ; biHeight may be negative (top-down) " we only handle positive (bottom-up)
     mov  eax, [edi + 22]            ; biHeight
     cmp  eax, 16
     jne  .fail
@@ -340,7 +340,7 @@ cursor_load_bmp:
     add  edi, ecx           ; edi = destination row ptr
     pop  ecx
 
-    ; copy 16 bytes raw — cursor uses system colours 0-15, no remap needed
+    ; copy 16 bytes raw " cursor uses system colours 0-15, no remap needed
     push ecx
     push esi
     mov  esi, edx
@@ -372,16 +372,16 @@ cursor_load_bmp:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
-; cursor_draw — save bg then blit cursor (bitmap if loaded, else arrow)
-; ---------------------------------------------------------------------------
+; -
+; cursor_draw " save bg then blit cursor (bitmap if loaded, else arrow)
+; -
 cursor_draw:
     call cursor_save_bg
 
     cmp  byte [cursor_use_bmp], 1
     je   cursor_draw_bmp
 
-    ; ── built-in 12×12 two-pass arrow ────────────────────────────────────
+    ; - built-in 12-12 two-pass arrow -
     pusha
     mov  dword [cursor_draw_colour], 0x00
     mov  esi, cursor_outline
@@ -392,10 +392,10 @@ cursor_draw:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; cursor_draw_bmp  —  blit 16×16 indexed pixels from cursor_bmp_pixels
+; -
+; cursor_draw_bmp  "  blit 16-16 indexed pixels from cursor_bmp_pixels
 ; Skips pixels whose index == cursor_bmp_transp
-; ---------------------------------------------------------------------------
+; -
 cursor_draw_bmp:
     pusha
     xor  esi, esi               ; row index (0 = top)
@@ -502,9 +502,9 @@ cursor_blit:
     popa
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Data
-; ---------------------------------------------------------------------------
+; -
 mouse_x:            dd 320
 mouse_y:            dd 240
 mouse_btn:          db 0
@@ -514,31 +514,31 @@ mouse_pkt:          db 0, 0, 0
                     db 0
 cursor_draw_colour: dd 0
 
-cursor_bg:  times 256 db 0   ; up to 16×16 saved background
+cursor_bg:  times 256 db 0   ; up to 16-16 saved background
 
-; ── BMP cursor data ──────────────────────────────────────────────────────────
+; - BMP cursor data -
 cursor_use_bmp:      db 0           ; 1 = use bitmap cursor, 0 = use arrow
 cursor_bmp_transp:   db 0x01       ; palette index treated as transparent
                      dw 0           ; align
-cursor_bmp_pixels:   times 256 db 0 ; 16×16 palette-index pixel data (top-row first)
+cursor_bmp_pixels:   times 256 db 0 ; 16-16 palette-index pixel data (top-row first)
 cursor_bmp_name:     db 'cursor', 0 ; ClaudeFS filename to search
 
 ; 12x12 arrow cursor
 ; Row by row, MSB=leftmost, 8 bits used (cols 0-7), rows 0-11
 ;
 ; Outline (black border):  Fill (white interior):
-; X...........             ...........
-; XX..........             X..........
-; X0X.........             X0.........
-; X00X........             X00........
-; X000X.......             X000.......
-; X0000X......             X0000......
-; X00000X.....             X00000.....
-; X000000X....             X000000....
-; X0000XXX....             X0000......
-; X00X.X......             X00........
-; X0X..X......             X0.........
-; XX...XX.....             ...........
+; X-             -
+; XX-             X-
+; X0X-             X0-
+; X00X-             X00-
+; X000X-             X000-
+; X0000X-             X0000-
+; X00000X-             X00000-
+; X000000X-             X000000-
+; X0000XXX-             X0000-
+; X00X.X-             X00-
+; X0X..X-             X0-
+; XX...XX-             -
 
 cursor_outline:
     db 10000000b  ; row  0  X

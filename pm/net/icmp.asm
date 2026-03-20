@@ -2,8 +2,8 @@
 ; pm/net/icmp.asm - ICMP  (RFC 792)
 ;
 ; Implements:
-;   - Echo Request (type 8) → ping
-;   - Echo Reply   (type 0) ← response to our ping
+;   - Echo Request (type 8) -> ping
+;   - Echo Reply   (type 0) <- response to our ping
 ;   - Handles incoming Echo Requests and sends replies
 ;
 ; ICMP Echo header (8 bytes) + data:
@@ -15,7 +15,7 @@
 ;   [8+] data      N   arbitrary payload
 ;
 ; Public interface:
-;   icmp_send_echo  EAX=dst_ip, CX=seq → CF
+;   icmp_send_echo  EAX=dst_ip, CX=seq -> CF
 ;   icmp_process    ESI=icmp_payload, ECX=len, EAX=src_ip
 ;   cmd_ping        shell command: ping <ip> [count]
 ; ===========================================================================
@@ -28,20 +28,20 @@ ICMP_HDR_LEN      equ 8
 ICMP_DATA_LEN     equ 32        ; bytes of padding per echo
 ICMP_IDENT        equ 0x4F53   ; 'OS'
 
-; ---------------------------------------------------------------------------
+; -
 ; icmp_checksum - ones-complement checksum, identical to ip_checksum
 ; but called separately so ICMP can compute over its own buffer
-; In: ESI=buf, ECX=len → AX=checksum (host order, ready to NOT and store)
-; ---------------------------------------------------------------------------
-icmp_checksum equ ip_checksum   ; exact same algorithm — reuse
+; In: ESI=buf, ECX=len -> AX=checksum (host order, ready to NOT and store)
+; -
+icmp_checksum equ ip_checksum   ; exact same algorithm - reuse
 
-; ---------------------------------------------------------------------------
+; -
 ; icmp_send_echo - send one ICMP Echo Request
 ;
 ; In:  EAX = destination IP (host order)
 ;      CX  = sequence number
 ; Out: CF=0 ok, CF=1 error
-; ---------------------------------------------------------------------------
+; -
 icmp_send_echo:
     push eax
     push ebx
@@ -53,7 +53,7 @@ icmp_send_echo:
     movzx eax, cx
     mov  [icmp_tx_seq], ax
 
-    ; ── Build ICMP echo request in icmp_tx_buf ───────────────────────────
+    ; - Build ICMP echo request in icmp_tx_buf -
     mov  edi, icmp_tx_buf
 
     mov  byte [edi + 0], ICMP_TYPE_REQUEST
@@ -107,13 +107,13 @@ icmp_send_echo:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; icmp_process - handle incoming ICMP packet
 ;
 ; In:  ESI = ICMP message pointer
 ;      ECX = length
 ;      EAX = source IP (host order, from IP layer)
-; ---------------------------------------------------------------------------
+; -
 icmp_process:
     push eax
     push ebx
@@ -194,10 +194,10 @@ icmp_process:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; icmp_poll - receive and dispatch one IP packet, handle ICMP
 ; Called in a loop by cmd_ping
-; ---------------------------------------------------------------------------
+; -
 icmp_poll:
     push eax
     push ecx
@@ -244,11 +244,11 @@ icmp_poll:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; cmd_ping - send ICMP echo requests to <ip>, print replies
 ; Usage: ping <ip>
 ; Sends 4 packets, waits up to ~1s each
-; ---------------------------------------------------------------------------
+; -
 cmd_ping:
     push eax
     push ebx
@@ -295,7 +295,7 @@ cmd_ping:
 
     inc  dword [ping_sent]
 
-    ; print "seq N ..."
+    ; print "seq N -
     mov  esi, pm_str_ping_seq
     mov  bl, 0x07
     call pm_puts
@@ -305,7 +305,7 @@ cmd_ping:
     mov  bl, 0x07
     call pm_puts
 
-    ; poll for reply — ~500000 iterations ≈ 1 second
+    ; poll for reply - ~500000 iterations ~ 1 second
     mov  ecx, 500000
 .wait:
     call icmp_poll
@@ -379,9 +379,9 @@ cmd_ping:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Data
-; ---------------------------------------------------------------------------
+; -
 icmp_tx_buf:     times (ICMP_HDR_LEN + ICMP_DATA_LEN) db 0
 icmp_reply_buf:  times 1500 db 0
 icmp_tx_dst:     dd 0
@@ -402,14 +402,14 @@ pm_str_ping_reply:    db 'reply from ', 0
 pm_str_ping_seq2:     db ' seq=', 0
 pm_str_ping_timeout:  db 'timeout', 0
 pm_str_ping_no_route: db 'no route (ARP miss)', 0
-pm_str_ping_stats:    db ' --- stats: ', 0
+pm_str_ping_stats:    db ' - stats: ', 0
 pm_str_ping_tx:       db ' sent, ', 0
 pm_str_ping_rx:       db ' received', 0
 pm_str_ping_usage:    db ' Usage: ping <ip>  e.g. ping 10.0.2.2', 13, 10, 0
 
-; ---------------------------------------------------------------------------
+; -
 ; cmd_netdbg - comprehensive NIC diagnostics
-; ---------------------------------------------------------------------------
+; -
 cmd_netdbg:
     push eax
     push ebx
@@ -737,7 +737,7 @@ cmd_netdbg:
     call pm_print_hex32
     call pm_newline
 
-    ; ← ADD HERE: dump all 16 bytes of RX desc[0]
+    ; <- ADD HERE: dump all 16 bytes of RX desc[0]
     push ecx
     push edi
     mov  edi, E1000_RX_DESC_BASE
@@ -767,7 +767,7 @@ cmd_netdbg:
     cmp  dx, ETHERTYPE_IPV4
     jne  .poll
 
-   ;it's IPv4 — parse the IP header ourselves (packet already in ESI/ECX)
+   ;it's IPv4 - parse the IP header ourselves (packet already in ESI/ECX)
     cmp  ecx, IP_HDR_LEN
     jl   .poll
     cmp  byte [esi], 0x45    ; version 4, no options

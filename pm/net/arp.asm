@@ -1,7 +1,7 @@
 ; ===========================================================================
 ; pm/net/arp.asm - ARP (Address Resolution Protocol)  RFC 826
 ;
-; Sends ARP requests and processes replies to resolve IPv4 → MAC.
+; Sends ARP requests and processes replies to resolve IPv4 -> MAC.
 ; Maintains a small cache of 8 entries.
 ;
 ; ARP packet layout (28 bytes for IPv4/Ethernet):
@@ -16,7 +16,7 @@
 ;   [24] target IP   4
 ;
 ; Public interface:
-;   arp_resolve   EDI=target_ip(dd) → ESI=mac ptr, CF=0 found / CF=1 not found
+;   arp_resolve   EDI=target_ip(dd) -> ESI=mac ptr, CF=0 found / CF=1 not found
 ;   arp_send_request  EDI=target_ip
 ;   arp_process   ESI=payload, ECX=len  (called by IP layer on EtherType 0x0806)
 ;   cmd_arp       shell: show ARP cache
@@ -34,10 +34,10 @@ ARP_PKT_LEN    equ 28
 ; ARP cache entry: 4 bytes IP + 6 bytes MAC + 1 byte valid = 11 bytes, pad to 12
 ARP_ENTRY_SIZE  equ 12
 
-; ---------------------------------------------------------------------------
+; -
 ; arp_init - pre-seed ARP cache with QEMU SLIRP gateway
 ; Call once after e1000_init
-; ---------------------------------------------------------------------------
+; -
 arp_init:
     push eax
     push esi
@@ -48,18 +48,22 @@ arp_init:
     xor  eax, eax
     rep  stosd
     pop  edi
-    ; insert gateway: 10.0.2.2 → 52:55:0a:00:02:02
+    ; insert gateway: 10.0.2.2 -> 52:55:0a:00:02:02
     mov  eax, [net_our_gw]
     mov  esi, arp_slirp_gw_mac
+    call arp_cache_insert
+    ; insert DNS server: 10.0.2.3 -> 52:55:0a:00:02:03
+    mov  eax, 0x0A000203    ; 10.0.2.3 QEMU SLIRP DNS
+    mov  esi, arp_slirp_dns_mac
     call arp_cache_insert
     pop  esi
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; arp_send_request - broadcast ARP request for target IP
 ; In: EDI = target IPv4 address (32-bit, host byte order)
-; ---------------------------------------------------------------------------
+; -
 arp_send_request:
     push eax
     push ecx
@@ -92,7 +96,7 @@ arp_send_request:
     pop  edi
     pop  esi
 
-    ; sender IP = our IP (host byte order → big-endian in packet)
+    ; sender IP = our IP (host byte order -> big-endian in packet)
     mov  eax, [net_our_ip]
     bswap eax
     mov  [edi + 14], eax
@@ -120,11 +124,11 @@ arp_send_request:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; arp_process - handle incoming ARP packet
 ; In: ESI = ARP payload pointer (28 bytes)
 ;     ECX = payload length
-; ---------------------------------------------------------------------------
+; -
 arp_process:
     push eax
     push ebx
@@ -243,10 +247,10 @@ arp_process:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; arp_cache_insert - add or update cache entry
 ; In: EAX = IPv4 (host order), ESI = pointer to 6-byte MAC
-; ---------------------------------------------------------------------------
+; -
 arp_cache_insert:
     push eax
     push ebx
@@ -265,7 +269,7 @@ arp_cache_insert:
     add  edi, ARP_ENTRY_SIZE
     loop .search
 
-    ; cache full — evict slot 0 (simple round-robin would be better)
+    ; cache full - evict slot 0 (simple round-robin would be better)
     mov  edi, arp_cache
 
 .found_slot:
@@ -286,12 +290,12 @@ arp_cache_insert:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; arp_resolve - look up MAC for given IP
 ; In:  EAX = target IPv4 (host order)
-; Out: CF=0 → ESI = pointer to 6-byte MAC in cache
-;      CF=1 → not found
-; ---------------------------------------------------------------------------
+; Out: CF=0 -> ESI = pointer to 6-byte MAC in cache
+;      CF=1 -> not found
+; -
 arp_resolve:
     push ecx
     push edi
@@ -316,9 +320,9 @@ arp_resolve:
     pop  ecx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; cmd_arp - display ARP cache
-; ---------------------------------------------------------------------------
+; -
 cmd_arp:
     push eax
     push ebx
@@ -393,10 +397,10 @@ cmd_arp:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_print_ip - print EAX as dotted-quad IPv4 (host byte order)
-; 0x0A000202 → "10.0.2.2"
-; ---------------------------------------------------------------------------
+; 0x0A000202 -> "10.0.2.2"
+; -
 pm_print_ip:
     push eax
     push ebx
@@ -445,11 +449,11 @@ pm_print_ip:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_parse_ip - parse dotted-quad at ESI into EAX (host byte order)
-; "10.0.2.2" → EAX = 0x0A000202
+; "10.0.2.2" -> EAX = 0x0A000202
 ; ESI advanced past the IP string
-; ---------------------------------------------------------------------------
+; -
 pm_parse_ip:
     push ebx
     push ecx
@@ -481,11 +485,11 @@ pm_parse_ip:
     pop  ebx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; cmd_arping - send ARP request for IP given on command line
 ; Usage: arping <dotted-quad>
 ; Sends request, polls for reply up to ~1 second, shows result
-; ---------------------------------------------------------------------------
+; -
 cmd_arping:
     push eax
     push ebx
@@ -532,7 +536,7 @@ cmd_arping:
 
     ; check if our target is now in cache
     mov  eax, [arping_target]
-    call arp_resolve         ; CF=0 → ESI=mac
+    call arp_resolve         ; CF=0 -> ESI=mac
     jnc  .got_reply
 
 .no_pkt:
@@ -556,7 +560,7 @@ cmd_arping:
     mov  bl, 0x07
     call pm_puts
 
-    ; print MAC — ESI points to 6-byte MAC in cache, walk EDI through it
+    ; print MAC - ESI points to 6-byte MAC in cache, walk EDI through it
     mov  edi, esi
     mov  ecx, 6
 .mac:
@@ -598,27 +602,28 @@ pm_str_arping_is:      db ' is at ', 0
 pm_str_arping_timeout: db ' Request timed out (no reply).', 13, 10, 0
 pm_str_arping_usage:   db ' Usage: arping <ip>  e.g. arping 10.0.2.2', 13, 10, 0
 
-; ---------------------------------------------------------------------------
+; -
 ; Data
-; ---------------------------------------------------------------------------
+; -
 arp_cache:       times (ARP_CACHE_SIZE * ARP_ENTRY_SIZE) db 0
 arp_pkt_buf:     times ARP_PKT_LEN db 0
 arp_target_ip:   dd 0
 arp_bcast_mac:   db 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 
 ; Network configuration (set via 'ipconfig' command or defaults)
-net_our_ip:      dd 0x0A00020F    ; 10.0.2.15 — QEMU user-net guest IP
+net_our_ip:      dd 0x0A00020F    ; 10.0.2.15 - QEMU user-net guest IP
 net_our_mask:    dd 0xFFFFFF00    ; /24
-net_our_gw:      dd 0x0A000202    ; 10.0.2.2  — QEMU user-net gateway
+net_our_gw:      dd 0x0A000202    ; 10.0.2.2  - QEMU user-net gateway
 
-; QEMU SLIRP does not respond to ARP — pre-seed the cache with the
+; QEMU SLIRP does not respond to ARP - pre-seed the cache with the
 ; well-known SLIRP gateway MAC (52:55:0a:00:02:02).
 ; This runs once at init time via arp_init.
 arp_slirp_gw_mac: db 0x52, 0x55, 0x0A, 0x00, 0x02, 0x02
+arp_slirp_dns_mac: db 0x52, 0x55, 0x0A, 0x00, 0x02, 0x03
 
 pm_str_arp_hdr:
     db ' ARP Cache:', 13, 10
     db ' IP Address       MAC Address', 13, 10
-    db ' ------------------------------------', 13, 10, 0
+    db ' -', 13, 10, 0
 pm_str_arp_empty:
     db ' (empty)', 13, 10, 0

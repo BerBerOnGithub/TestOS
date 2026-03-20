@@ -5,9 +5,9 @@
 cmd_buf:  times 128 db 0
 cmd_len:  db 0
 
-; ---------------------------------------------------------------------------
+; -
 ; shell_readline - read a line of input into cmd_buf
-; ---------------------------------------------------------------------------
+; -
 shell_readline:
     push ax
     push bx

@@ -15,9 +15,9 @@
 ;
 ; Public interface:
 ;   pci_init          - scan bus, find e1000, store result
-;   pci_read32        - EBX=addr → EAX=data
+;   pci_read32        - EBX=addr -> EAX=data
 ;   pci_write32       - EBX=addr, EAX=data
-;   pci_make_addr     - BL=bus, BH=dev, CL=func, CH=reg → EBX=addr
+;   pci_make_addr     - BL=bus, BH=dev, CL=func, CH=reg -> EBX=addr
 ;   cmd_pci           - shell command: list all PCI devices
 ;   cmd_lspci         - alias
 ;
@@ -46,12 +46,12 @@ PCI_REG_BAR1    equ 0x14
 PCI_REG_SUBSYS  equ 0x2C
 PCI_REG_INTLINE equ 0x3C     ; interrupt line + pin
 
-; ---------------------------------------------------------------------------
+; -
 ; pci_make_addr
 ; In:  BL=bus  BH=device  CL=function  CH=register (byte offset, 4-aligned)
 ; Out: EBX = 32-bit PCI config address (ready to write to 0xCF8)
 ; Preserves: EAX, ECX
-; ---------------------------------------------------------------------------
+; -
 pci_make_addr:
     push eax
 
@@ -87,17 +87,17 @@ pci_make_addr:
     pop  eax
     ret
 
-; local scratch (safe — single-threaded, no re-entrancy concern)
+; local scratch (safe - single-threaded, no re-entrancy concern)
 .s_bus:  db 0
 .s_dev:  db 0
 .s_func: db 0
 .s_reg:  db 0
 
-; ---------------------------------------------------------------------------
+; -
 ; pci_read32
 ; In:  EBX = PCI config address (from pci_make_addr)
 ; Out: EAX = 32-bit data
-; ---------------------------------------------------------------------------
+; -
 pci_read32:
     push edx
     mov  dx, PCI_ADDR_PORT
@@ -108,10 +108,10 @@ pci_read32:
     pop  edx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pci_write32
 ; In:  EBX = PCI config address, EAX = value to write
-; ---------------------------------------------------------------------------
+; -
 pci_write32:
     push eax
     push edx
@@ -128,11 +128,11 @@ pci_write32:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pci_read_venddev
 ; In:  BL=bus, BH=dev, CL=func
 ; Out: EAX = vendor(15:0) | device(31:16), or 0xFFFFFFFF if no device
-; ---------------------------------------------------------------------------
+; -
 pci_read_venddev:
     push ebx
     push ecx
@@ -143,9 +143,9 @@ pci_read_venddev:
     pop  ebx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pci_init - scan all buses/devices, find e1000, store result
-; ---------------------------------------------------------------------------
+; -
 pci_init:
     push eax
     push ebx
@@ -207,7 +207,7 @@ pci_init:
     mov  [pci_e1000_dev],  bh
     mov  byte [pci_e1000_func], 0
 
-    ; read BAR0 — must set CL=0 (function 0) explicitly since ECX
+    ; read BAR0 - must set CL=0 (function 0) explicitly since ECX
     ; was last used for device ID checks and CL may be non-zero
     xor  cl, cl
     mov  ch, PCI_REG_BAR0
@@ -238,7 +238,7 @@ pci_init:
     jl   .dev_loop
 
     inc  bl
-    jnz  .bus_loop           ; wraps 255→0, done
+    jnz  .bus_loop           ; wraps 255->0, done
 
     pop  esi
     pop  edx
@@ -247,10 +247,10 @@ pci_init:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; cmd_pci  (also aliased as cmd_lspci)
 ; Lists all found PCI devices with vendor:device IDs and class
-; ---------------------------------------------------------------------------
+; -
 cmd_pci:
     push eax
     push ebx
@@ -284,7 +284,7 @@ cmd_pci:
     push eax
     ; print bus (save/restore BX around print)
     push ebx
-    movzx eax, bl            ; bus — but BL is now clobbered by pm_puts attr
+    movzx eax, bl            ; bus - but BL is now clobbered by pm_puts attr
     pop  ebx
     push ebx
     movzx eax, bl
@@ -377,13 +377,13 @@ cmd_pci:
     ret
 
 ; print a friendly device name based on vendor:device in EAX at entry
-; EAX = vendor(15:0) | device(31:16) — already consumed, passed on stack
+; EAX = vendor(15:0) | device(31:16) - already consumed, passed on stack
 ; We just check a short table
 .print_name:
     push eax
     push esi
     push ebx
-    ; EAX was passed before the push — but we need original EAX
+    ; EAX was passed before the push - but we need original EAX
     ; it's on the stack: [esp+8] after push eax + push esi + push ebx
     mov  eax, [esp + 8 + 4]  ; 3 pushes = 12 bytes, but we pushed eax first
     ; simpler: just hardcode known IDs
@@ -421,11 +421,11 @@ cmd_pci:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; pm_print_hex8  - print AL as 2 hex digits
 ; pm_print_hex16 - print AX as 4 hex digits
 ; (pm_print_hex32 already exists in pm_commands.asm)
-; ---------------------------------------------------------------------------
+; -
 pm_print_hex8:
     push eax
     push ebx
@@ -476,9 +476,9 @@ pm_print_hex16:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Data
-; ---------------------------------------------------------------------------
+; -
 pci_e1000_found:  db 0
 pci_e1000_bus:    db 0
 pci_e1000_dev:    db 0
@@ -492,7 +492,7 @@ pci_scan_table:   times (PCI_SCAN_MAX * 8) db 0
 
 pm_str_pci_hdr:
     db ' Bus:Dev.F  Vendor:Dev  Description', 13, 10
-    db ' ---------------------------------', 13, 10, 0
+    db ' -', 13, 10, 0
 pm_str_pci_indent:    db '  ', 0
 pm_str_pci_e1000_found:
     db ' [NET] Intel e1000 found at ', 0

@@ -1,5 +1,5 @@
 ; ===========================================================================
-; pm/wm.asm  -  ClaudeOS Window Manager
+; pm/wm.asm  -  NatureOS Window Manager
 ;
 ; Up to WM_MAX_WINS windows.  Window types: TERM, CLOCK, FILES.
 ; Supports dragging by title bar, close button, focus.
@@ -25,7 +25,7 @@
 ; Public:
 ;   wm_init             once at startup
 ;   wm_draw_all         full redraw (desktop + windows + taskbar)
-;   wm_open             AL=type EBX=x ECX=y EDX=w ESI=h  → ECX=idx CF=1 full
+;   wm_open             AL=type EBX=x ECX=y EDX=w ESI=h  +' ECX=idx CF=1 full
 ;   wm_close            ECX=idx
 ;   wm_on_click         EAX=mx EBX=my  (call on left-button press)
 ;   wm_on_drag          (call each mouse-move while left held)
@@ -35,7 +35,7 @@
 
 [BITS 32]
 
-; ── tunables ─────────────────────────────────────────────────────────────────
+; - tunables -
 WM_MAX_WINS   equ 4
 WM_STRIDE     equ 32
 WM_TITLE_H    equ 18        ; title bar pixel height
@@ -56,7 +56,7 @@ WM_C_BODY     equ 0x00      ; black client area
 WM_C_BORDER   equ 0x07      ; grey border
 WM_C_CLOSE    equ 0x04      ; red close button
 
-; ── wm_init ──────────────────────────────────────────────────────────────────
+; - wm_init -
 wm_init:
     pusha
     mov  edi, wm_table
@@ -69,14 +69,14 @@ wm_init:
     popa
     ret
 
-; ── wm_draw_desktop ──────────────────────────────────────────────────────────
+; - wm_draw_desktop -
 wm_draw_desktop:
     pusha
-    ; draw wallpaper (or solid fill fallback) — bottom layer
+    ; draw wallpaper (or solid fill fallback) " bottom layer
     call wallpaper_draw
 
-    ; ── desktop watermark (bottom-right, right-aligned) ──────────────────
-    ; 'ClaudeOS' = 8 chars * 8px = 64px  -> x = 640 - 64 - 4 = 572
+    ; - desktop watermark (bottom-right, right-aligned) -
+    ; 'NatureOS' = 8 chars * 8px = 64px  -> x = 640 - 64 - 4 = 572
     mov  esi, wm_s_watermark_os
     mov  ebx, 572
     mov  ecx, WM_TASKBAR_Y - 20
@@ -104,7 +104,7 @@ wm_draw_desktop:
     mov  edx, 640
     mov  cl,  0x0F
     call fb_hline
-    ; "ClaudeOS" start button (x=2, y=taskbar+2, w=82, h=taskbar_h-4)
+    ; "NatureOS" start button (x=2, y=taskbar+2, w=82, h=taskbar_h-4)
     mov  eax, 2
     mov  ebx, WM_TASKBAR_Y + 2
     mov  ecx, 82
@@ -126,9 +126,9 @@ wm_draw_desktop:
     popa
     ret
 
-; ── wm_draw_one ──────────────────────────────────────────────────────────────
+; - wm_draw_one -
 ; Draws one window chrome (title bar, border, close btn).
-; For WM_TERM the client area is NOT cleared — terminal manages its own pixels.
+; For WM_TERM the client area is NOT cleared " terminal manages its own pixels.
 ; ECX = index.  Preserves all registers.
 wm_draw_one:
     pusha
@@ -142,7 +142,7 @@ wm_draw_one:
     mov  ecx, [edi+8]
     mov  edx, [edi+12]
 
-    ; ── client area — always fill black ──────────────────────────────────
+    ; - client area " always fill black -
     push eax
     push ebx
     push ecx
@@ -158,7 +158,7 @@ wm_draw_one:
 
 .skip_body:
 
-    ; ── title bar ──
+    ; - title bar -
     push eax
     push ebx
     push ecx
@@ -175,7 +175,7 @@ wm_draw_one:
     pop  ebx
     pop  eax
 
-    ; ── outer border ──
+    ; - outer border -
     push eax
     push ebx
     push ecx
@@ -187,7 +187,7 @@ wm_draw_one:
     pop  ebx
     pop  eax
 
-    ; ── close button (red rectangle, top-right of title bar) ──
+    ; - close button (red rectangle, top-right of title bar) -
     push eax
     push ebx
     push ecx
@@ -210,7 +210,7 @@ wm_draw_one:
     pop  ebx
     pop  eax
 
-    ; ── title text ──
+    ; - title text -
     push eax
     push ecx
     mov  esi, [edi+20]          ; title string pointer
@@ -232,7 +232,7 @@ wm_draw_one:
     popa
     ret
 
-; ── wm_draw_taskbar_btns ─────────────────────────────────────────────────────
+; - wm_draw_taskbar_btns -
 wm_draw_taskbar_btns:
     pusha
     mov  dword [wm_tbx], 90     ; start after the brand text
@@ -298,7 +298,7 @@ SM_ITEMS  equ 4
 SM_HDR_H  equ 16                    ; header bar height
 SM_H      equ SM_HDR_H + (SM_ITEM_H * SM_ITEMS) + 2  ; 16+88+2 = 106
 
-; ── wm_draw_startmenu ─────────────────────────────────────────────────────────
+; - wm_draw_startmenu -
 wm_draw_startmenu:
     pusha
     ; background + border
@@ -379,8 +379,8 @@ wm_draw_startmenu:
     popa
     ret
 
-; ── wm_hide_startmenu ─────────────────────────────────────────────────────────
-; ── wm_fmt_size ───────────────────────────────────────────────────────────────
+; - wm_hide_startmenu -
+; - wm_fmt_size -
 ; Convert byte count in EAX to short string at EDI.
 ; Shows bytes if < 1024, else KB.  e.g. "512b" or "4Kb"
 ; Trashes EAX, EBX, ECX, EDX. EDI advanced.
@@ -440,14 +440,14 @@ wm_hide_startmenu:
     popa
     ret
 
-; ── wm_draw_all ──────────────────────────────────────────────────────────────
-; Draw order: desktop → terminal chrome+content → all other windows → taskbar
+; - wm_draw_all -
+; Draw order: desktop +' terminal chrome+content +' all other windows +' taskbar
 ; This ensures non-terminal windows always appear on top of the terminal.
 wm_draw_all:
     pusha
     call cursor_erase           ; remove cursor before any drawing
     call wm_draw_desktop
-    call icons_draw         ; icons are part of desktop — windows draw over them
+    call icons_draw         ; icons are part of desktop " windows draw over them
 
     ; Pass 1: draw the terminal window (chrome + content) first
     mov  dword [wm_i], 0
@@ -499,7 +499,7 @@ wm_draw_all:
     popa
     ret
 
-; ── wm_open ──────────────────────────────────────────────────────────────────
+; - wm_open -
 ; In:  AL=type  EBX=x  ECX=y  EDX=w  ESI=h
 ; Out: ECX=new index (unchanged if error);  CF=1 table full
 wm_open:
@@ -591,7 +591,7 @@ wm_open:
     pop  eax
     ret
 
-; ── wm_close ─────────────────────────────────────────────────────────────────
+; - wm_close -
 ; In: ECX = index
 wm_close:
     pusha
@@ -619,7 +619,7 @@ wm_close:
     popa
     ret
 
-; ── wm_set_focus ─────────────────────────────────────────────────────────────
+; - wm_set_focus -
 ; In: ECX = index to focus
 wm_set_focus:
     pusha
@@ -639,7 +639,7 @@ wm_set_focus:
     popa
     ret
 
-; ── wm_draw_close_x ───────────────────────────────────────────────────────────
+; - wm_draw_close_x -
 ; Draws a white X inside the 14x14 close button.
 ; In: EAX=box_x, EBX=box_y
 wm_draw_close_x:
@@ -687,10 +687,10 @@ wm_draw_close_x:
     pop  eax
     ret
 
-; ── wm_hit_test ──────────────────────────────────────────────────────────────
+; - wm_hit_test -
 ; In:  EAX=mx  EBX=my
-; Out: CF=0 → ECX=window index (topmost hit)  EDX=region(1=title 2=close 3=client)
-;      CF=1 → desktop (no window hit)
+; Out: CF=0 +' ECX=window index (topmost hit)  EDX=region(1=title 2=close 3=client)
+;      CF=1 +' desktop (no window hit)
 wm_hit_test:
     push eax
     push ebx
@@ -720,7 +720,7 @@ wm_hit_test:
     cmp  ebx, edx
     jge  .snext
 
-    ; ── determine region ──
+    ; - determine region -
     ; close button: x >= win_x+w-18  AND  y <= win_y+16
     mov  edx, [edi+0]
     add  edx, [edi+8]
@@ -762,16 +762,16 @@ wm_hit_test:
     pop  eax
     ret
 
-; ── wm_on_click ──────────────────────────────────────────────────────────────
+; - wm_on_click -
 ; In: EAX=mx  EBX=my
 wm_on_click:
     pusha
 
-    ; ── taskbar button click? ─────────────────────────────────────────────
+    ; - taskbar button click? -
     cmp  ebx, WM_TASKBAR_Y
     jl   .not_taskbar
 
-    ; ClaudeOS start button: x < 84
+    ; NatureOS start button: x < 84
     cmp  eax, 84
     jge  .tb_windows
     ; toggle start menu
@@ -789,7 +789,7 @@ wm_on_click:
     jmp  .done
 
 .tb_windows:
-    ; in taskbar row — find which window button
+    ; in taskbar row " find which window button
     mov  edx, 90            ; first button x (matches wm_draw_taskbar_btns)
     xor  ecx, ecx
 .tbscan:
@@ -815,7 +815,7 @@ wm_on_click:
     jmp  .tbscan
 
 .not_taskbar:
-    ; ── start menu item click? ────────────────────────────────────────────
+    ; - start menu item click? -
     cmp  byte [sm_open], 1
     jne  .no_sm_click
     ; check bounds: x in [SM_X, SM_X+SM_W], y in [TASKBAR_Y-SM_H, TASKBAR_Y]
@@ -847,7 +847,7 @@ wm_on_click:
     call wm_hide_startmenu
     jmp  .done
 .no_sm_click:
-    ; ── window hit test ───────────────────────────────────────────────────
+    ; - window hit test -
     call wm_hit_test
     jc   .desktop
 
@@ -859,9 +859,9 @@ wm_on_click:
 
     cmp  edx, 2             ; close?
     je   .do_close
-    cmp  edx, 1             ; title bar — start drag
+    cmp  edx, 1             ; title bar " start drag
     je   .do_drag
-    ; client click — check for button hit in WM_CLOCK window
+    ; client click " check for button hit in WM_CLOCK window
     cmp  edx, 3
     jne  .done
     imul edi, ecx, WM_STRIDE
@@ -894,8 +894,8 @@ wm_on_click:
     popa
     ret
 
-; ── wm_on_drag ───────────────────────────────────────────────────────────────
-; XOR ghost drag — erase old outline, move, draw new outline. Zero flicker.
+; - wm_on_drag -
+; XOR ghost drag " erase old outline, move, draw new outline. Zero flicker.
 wm_on_drag:
     pusha
     cmp  dword [wm_drag_win], -1
@@ -970,7 +970,7 @@ wm_on_drag:
     popa
     ret
 
-; ── wm_on_release ────────────────────────────────────────────────────────────
+; - wm_on_release -
 ; Full redraw now that drag is committed.
 wm_on_release:
     pusha
@@ -982,7 +982,7 @@ wm_on_release:
     popa
     ret
 
-; ── wm_redraw_contents ────────────────────────────────────────────────────────
+; - wm_redraw_contents -
 ; Draw content for all open non-terminal windows (clock, files, help).
 wm_redraw_contents:
     pusha
@@ -1018,7 +1018,7 @@ wm_redraw_contents:
     popa
     ret
 
-; ── wm_clock_click ────────────────────────────────────────────────────────────
+; - wm_clock_click -
 ; Called when a client-area click hits a WM_CLOCK window.
 ; ECX=window index, EAX=mouse_x, EBX=mouse_y
 wm_clock_click:
@@ -1051,13 +1051,13 @@ wm_clock_click:
     ; Button 1: toggle start/stop
     cmp  byte [sw_running], 1
     je   .do_pause
-    ; --- START: restore cs_count from saved offset ---
+    ; - START: restore cs_count from saved offset -
     mov  eax, [sw_start_offset]
     mov  [sw_cs_count], eax
     mov  byte [sw_running], 1
     jmp  .btn1_done
 .do_pause:
-    ; --- STOP: save cs_count ---
+    ; - STOP: save cs_count -
     mov  eax, [sw_cs_count]
     mov  [sw_start_offset], eax
     mov  byte [sw_running], 0
@@ -1084,7 +1084,7 @@ wm_clock_click:
     mov  byte  [sw_running], 0
     jmp  .redraw
 .cancel:
-    ; cancel timer — close the window
+    ; cancel timer " close the window
     call wm_close
     mov  dword [sw_ticks], 0
     mov  byte  [sw_running], 0
@@ -1101,7 +1101,7 @@ wm_clock_click:
     pop  eax
     ret
 
-; ── wm_draw_clock ─────────────────────────────────────────────────────────────
+; - wm_draw_clock -
 ; Draws stopwatch/timer window with GUI buttons.
 ; Layout (client area, win w=220 h=100):
 ;   y+8:  MM:SS.cs at 2x scale (centred)
@@ -1134,7 +1134,7 @@ wm_draw_clock:
     mov  esi, WM_C_BODY
     call fb_fill_rect
 
-    ; --- compute display values ---
+    ; - compute display values -
     mov  ecx, [wm_tmp_idx]
     imul edi, ecx, WM_STRIDE
     add  edi, wm_table
@@ -1156,12 +1156,8 @@ wm_draw_clock:
     jmp  .format
 
 .timer_calc:
-    mov  eax, [sw_ticks_end]
-    sub  eax, [sw_ticks]
-    jns  .timer_pos
-    xor  eax, eax
-    mov  byte [sw_running], 0
-.timer_pos:
+    ; sw_ticks already contains remaining centiseconds (set by wm_update_contents)
+    mov  eax, [sw_ticks]
     xor  edx, edx
     mov  ecx, 100
     div  ecx
@@ -1188,7 +1184,7 @@ wm_draw_clock:
     mov  byte [edi], 0
     pop  edi                    ; restore window entry ptr
 
-    ; --- time display: 2x, centred (128px wide -> offset 46) ---
+    ; - time display: 2x, centred (128px wide -> offset 46) -
     mov  dword [fcs_scale], 2
     mov  esi, wm_clk_buf
     mov  ebx, [edi+0]
@@ -1199,16 +1195,16 @@ wm_draw_clock:
     mov  dh,  WM_C_BODY
     call fb_draw_string_scaled
 
-    ; --- status text ---
+    ; - status text -
     mov  esi, wm_s_sw_paused
     cmp  byte [sw_running], 1
     jne  .draw_status
     mov  esi, wm_s_sw_running
     cmp  byte [sw_mode], SW_MODE_TIMER
     jne  .draw_status
-    mov  eax, [sw_ticks_end]
-    cmp  eax, [sw_ticks]
-    jg   .draw_status
+    ; timer is done when sw_running was cleared by countdown
+    cmp  byte [sw_running], 1
+    je   .draw_status
     mov  esi, wm_s_sw_done
 .draw_status:
     mov  ebx, [edi+0]
@@ -1219,7 +1215,7 @@ wm_draw_clock:
     mov  dh,  WM_C_BODY
     call fb_draw_string
 
-    ; ── Button 1: [Start] / [Stop]  x=win_x+8  y=win_y+74  w=96  h=16 ──
+    ; - Button 1: [Start] / [Stop]  x=win_x+8  y=win_y+74  w=96  h=16 -
     mov  eax, [edi+0]
     add  eax, 8
     mov  ebx, [edi+4]
@@ -1240,7 +1236,7 @@ wm_draw_clock:
     mov  edx, 16
     mov  esi, 0x0F
     call fb_draw_rect_outline
-    ; label: "Start"(5) or "Stop"(4) — centre in 96px: Start->x+28, Stop->x+32
+    ; label: "Start"(5) or "Stop"(4) " centre in 96px: Start->x+28, Stop->x+32
     mov  esi, wm_s_btn_start
     mov  ebx, [edi+0]
     add  ebx, 36                ; (96 - 5*8) / 2 + 8 = 36
@@ -1260,7 +1256,7 @@ wm_draw_clock:
 .b1lbl2:
     call fb_draw_string
 
-    ; ── Button 2: [Reset] / [Cancel]  x=win_x+116  y=win_y+74  w=96  h=16 ──
+    ; - Button 2: [Reset] / [Cancel]  x=win_x+116  y=win_y+74  w=96  h=16 -
     mov  eax, [edi+0]
     add  eax, 116
     mov  ebx, [edi+4]
@@ -1302,7 +1298,7 @@ wm_draw_clock:
     pop  eax
     ret
 
-; ── wm_draw_help ──────────────────────────────────────────────────────────────
+; - wm_draw_help -
 ; In: ECX = window index  (must be WM_HELP)
 wm_draw_help:
     pusha
@@ -1370,7 +1366,7 @@ wm_draw_help:
     popa
     ret
 
-; ── wm_draw_files ────────────────────────────────────────────────────────────
+; - wm_draw_files -
 ; In: ECX = window index  (must be WM_FILES)
 wm_draw_files:
     pusha
@@ -1412,7 +1408,7 @@ wm_draw_files:
     sub  eax, 6
     mov  [wm_fy_max], eax
 
-    ; ── Section 1: ISO (read-only) ──────────────────────────────────────────
+    ; - Section 1: ISO (read-only) -
     mov  esi, wm_s_sec_iso
     mov  ebx, [wm_fx]
     mov  ecx, [wm_fy]
@@ -1459,7 +1455,7 @@ wm_draw_files:
     mov  esi, wm_fbuf
     mov  ebx, [wm_fx]
     mov  ecx, [wm_fy]
-    mov  dl,  0x07              ; grey — read only
+    mov  dl,  0x07              ; grey " read only
     mov  dh,  WM_C_BODY
     call fb_draw_string
     pop  esi
@@ -1492,10 +1488,10 @@ wm_draw_files:
 
 .fiso_done:
 
-    ; ── gap between sections ────────────────────────────────────────────────
+    ; - gap between sections -
     add  dword [wm_fy], 3
 
-    ; ── Section 2: DATA disk ────────────────────────────────────────────────
+    ; - Section 2: DATA disk -
     mov  eax, [wm_fy]
     cmp  eax, [wm_fy_max]
     jge  .fdone
@@ -1550,7 +1546,7 @@ wm_draw_files:
     mov  esi, wm_fbuf
     mov  ebx, [wm_fx]
     mov  ecx, [wm_fy]
-    mov  dl,  0x0F              ; bright white — writable
+    mov  dl,  0x0F              ; bright white " writable
     mov  dh,  WM_C_BODY
     call fb_draw_string
     pop  esi
@@ -1608,7 +1604,7 @@ wm_draw_files:
 
 
 
-; ── wm_update_contents ───────────────────────────────────────────────────────
+; - wm_update_contents -
 ; Called every main loop iteration.
 ; pit_ticks is incremented at 100Hz by the IRQ0 handler.
 ; We snapshot it and act only when it advances.
@@ -1622,11 +1618,11 @@ wm_update_contents:
     je   .done                  ; no new tick yet
     mov  [sw_last_pit], eax
 
-    ; --- notification auto-clear ---
+    ; - notification auto-clear -
     call wm_notify_tick
 .no_notify:
 
-    ; --- taskbar clock: update on RTC second change ---
+    ; - taskbar clock: update on RTC second change -
     push eax
     mov  al, 0x00
     out  0x70, al
@@ -1636,35 +1632,52 @@ wm_update_contents:
     cmp  eax, [wm_last_sec]
     je   .no_clock
     mov  [wm_last_sec], eax
-    call wm_draw_taskbar_clock
+    inc  dword [si_uptime_secs]     ; tick uptime counter once per RTC second
+    ; if timer is running, increment elapsed RTC seconds
+    cmp  byte [sw_running], 1
+    jne  .no_rtc_tick
+    cmp  byte [sw_mode], SW_MODE_TIMER
+    jne  .no_rtc_tick
+    inc  dword [sw_rtc_secs]
+.no_rtc_tick:
+    ; wm_draw_all redraws taskbar clock too - no separate call needed
+    call wm_draw_all                ; full redraw keeps windows + taskbar intact
 .no_clock:
     pop  eax
 
-    ; --- stopwatch/timer: only if running ---
+    ; - stopwatch/timer: only if running -
     cmp  byte [sw_running], 1
     jne  .done
 
-    inc  dword [sw_cs_count]    ; one tick = one centisecond at 100Hz
+    ; stopwatch always counts PIT ticks (cosmetic only, accuracy doesn't matter)
+    inc  dword [sw_cs_count]
 
-    ; update display value
-    mov  eax, [sw_cs_count]
+    ; update sw_ticks: what wm_draw_clock will display
     cmp  byte [sw_mode], SW_MODE_TIMER
-    jne  .sw_store
-    mov  ecx, [sw_ticks_end]
-    sub  ecx, eax
-    jns  .timer_ok
-    xor  ecx, ecx
+    je   .timer_update
+    ; stopwatch: display = sw_cs_count
+    mov  eax, [sw_cs_count]
+    mov  [sw_ticks], eax
+    jmp  .check_redraw
+
+.timer_update:
+    ; timer: display = remaining seconds from RTC (sw_rtc_secs counts real seconds)
+    ; sw_ticks_end = total seconds entered by user
+    mov  eax, [sw_ticks_end]
+    sub  eax, [sw_rtc_secs]
+    jns  .timer_pos
+    xor  eax, eax
     mov  byte [sw_running], 0
-.timer_ok:
-    mov  eax, ecx
-.sw_store:
+.timer_pos:
+    ; convert remaining seconds to centiseconds for display
+    imul eax, 100
     mov  [sw_ticks], eax
 
-    ; redraw every 16 ticks (~6fps) — cheap power-of-2 test
+.check_redraw:
+    ; redraw every 4 ticks (25fps)
     mov  eax, [sw_cs_count]
-    and  eax, 0x0F
+    and  eax, 0x03
     jnz  .done
-
 .do_redraw:
     mov  dword [wm_i], 0
 .sw_loop:
@@ -1692,7 +1705,7 @@ wm_update_contents:
     pop  eax
     ret
 
-; ── wm_draw_taskbar_clock ─────────────────────────────────────────────────────
+; - wm_draw_taskbar_clock -
 ; Draws HH:MM:SS right-aligned in the taskbar (right side, before watermark).
 wm_draw_taskbar_clock:
     push eax
@@ -1793,7 +1806,217 @@ wm_d2:
     pop  eax
     ret
 
-; ── data ─────────────────────────────────────────────────────────────────────
+; - data -
+
+; -
+; -
+
+; -
+; wm_draw_sysinfo - transparent live stats panel, top-right of desktop
+;
+; No background box. Text drawn directly over wallpaper (dh=0xFF transparent).
+; Lines (10px apart, x=474 label / x=544 value):
+;   System Info   (cyan header)
+;   Uptime:  NNNs  (incremented each second, no division jitter)
+;   RAM:     NNNMb  (from BIOS data at 0x413, conventional mem)
+;   Files:   N      (fsd_used, no hardcoded max)
+;   Disk:    NNNKb / NNNKb
+;   Scrs:    N
+; -
+wm_draw_sysinfo:
+    pusha
+
+    mov  dword [si_y], 8
+
+    ; Line 1: header
+    mov  esi, si_str_hdr
+    mov  ebx, 474
+    mov  ecx, [si_y]
+    mov  dl,  0x0B
+    mov  dh,  0xFF
+    call fb_draw_string
+    add  dword [si_y], 11
+
+    ; Line 2: Uptime
+    mov  esi, si_str_uptime
+    mov  ebx, 474
+    mov  ecx, [si_y]
+    mov  dl,  0x07
+    mov  dh,  0xFF
+    call fb_draw_string
+    mov  eax, [si_uptime_secs]
+    mov  edi, si_numbuf
+    call si_write_dec
+    mov  byte [edi], 's'
+    inc  edi
+    mov  byte [edi], 0
+    mov  esi, si_numbuf
+    mov  ebx, 544
+    mov  ecx, [si_y]
+    mov  dl,  0x0F
+    mov  dh,  0xFF
+    call fb_draw_string
+    add  dword [si_y], 11
+
+    ; Line 3: RAM - read CMOS 0x17/0x18 (extended KB) + 640KB conventional
+    mov  esi, si_str_ram
+    mov  ebx, 474
+    mov  ecx, [si_y]
+    mov  dl,  0x07
+    mov  dh,  0xFF
+    call fb_draw_string
+    ; read CMOS 0x17 = extended memory low byte (KB)
+    mov  al, 0x17
+    out  0x70, al
+    in   al, 0x71
+    movzx eax, al
+    ; read CMOS 0x18 = extended memory high byte (KB)
+    push eax
+    mov  al, 0x18
+    out  0x70, al
+    in   al, 0x71
+    movzx eax, al
+    shl  eax, 8
+    pop  ecx
+    or   eax, ecx               ; EAX = extended KB (low 16-bit)
+    add  eax, 1024              ; add 1MB (conventional + HMA) in KB
+    shr  eax, 10                ; KB -> MB
+    mov  edi, si_numbuf
+    call si_write_dec
+    mov  byte [edi], 'M'
+    inc  edi
+    mov  byte [edi], 'b'
+    inc  edi
+    mov  byte [edi], 0
+    mov  esi, si_numbuf
+    mov  ebx, 544
+    mov  ecx, [si_y]
+    mov  dl,  0x0F
+    mov  dh,  0xFF
+    call fb_draw_string
+    add  dword [si_y], 11
+
+    ; Line 4: Files
+    mov  esi, si_str_files
+    mov  ebx, 474
+    mov  ecx, [si_y]
+    mov  dl,  0x07
+    mov  dh,  0xFF
+    call fb_draw_string
+    mov  eax, [fsd_used]
+    mov  edi, si_numbuf
+    call si_write_dec
+    mov  byte [edi], 0
+    mov  esi, si_numbuf
+    mov  ebx, 544
+    mov  ecx, [si_y]
+    mov  dl,  0x0F
+    mov  dh,  0xFF
+    call fb_draw_string
+    add  dword [si_y], 11
+
+    ; compute used sectors
+    xor  eax, eax
+    mov  [si_tmp], eax
+    cmp  byte [fsd_ready], 1
+    jne  .si_disk_draw
+    push esi
+    push ecx
+    mov  esi, fsd_dir_buf
+    mov  ecx, FSD_MAX_ENT
+.si_used_loop:
+    cmp  dword [esi + 24], FSD_FLAG_USED
+    jne  .si_used_skip
+    mov  eax, [esi + 20]
+    add  eax, 511
+    shr  eax, 9
+    add  [si_tmp], eax
+.si_used_skip:
+    add  esi, FSD_ENT_SZ
+    loop .si_used_loop
+    pop  ecx
+    pop  esi
+
+    ; Line 5: Disk  NNNKb/NNNKb
+.si_disk_draw:
+    mov  esi, si_str_disk
+    mov  ebx, 474
+    mov  ecx, [si_y]
+    mov  dl,  0x07
+    mov  dh,  0xFF
+    call fb_draw_string
+    mov  eax, [si_tmp]
+    shr  eax, 1
+    mov  edi, si_numbuf
+    call si_write_dec
+    mov  byte [edi], 'K'
+    inc  edi
+    mov  byte [edi], '/'
+    inc  edi
+    mov  eax, [fsd_hdr_buf + 12]
+    shr  eax, 1
+    call si_write_dec
+    mov  byte [edi], 'K'
+    inc  edi
+    mov  byte [edi], 0
+    mov  esi, si_numbuf
+    mov  ebx, 544
+    mov  ecx, [si_y]
+    mov  dl,  0x0A
+    mov  dh,  0xFF
+    call fb_draw_string
+
+    popa
+    ret
+
+; -
+; si_write_dec - write EAX as decimal string to [EDI], advance EDI
+; Trashes nothing (saves/restores all used regs)
+; -
+si_write_dec:
+    push eax
+    push ebx
+    push ecx
+    push edx
+    mov  ecx, 0
+    mov  ebx, 10
+    test eax, eax
+    jnz  .push
+    mov  byte [edi], '0'
+    inc  edi
+    jmp  .done
+.push:
+    xor  edx, edx
+    div  ebx
+    push edx
+    inc  ecx
+    test eax, eax
+    jnz  .push
+.pop:
+    pop  edx
+    add  dl, '0'
+    mov  [edi], dl
+    inc  edi
+    loop .pop
+.done:
+    pop  edx
+    pop  ecx
+    pop  ebx
+    pop  eax
+    ret
+
+; sysinfo data
+si_y:           dd 0
+si_tmp:         dd 0
+si_uptime_secs: dd 0
+si_numbuf:      times 20 db 0
+si_str_hdr:     db 'System Info', 0
+si_str_uptime:  db 'Uptime: ', 0
+si_str_ram:     db 'RAM:    ', 0
+si_str_files:   db 'Files:  ', 0
+si_str_disk:    db 'Disk:   ', 0
+si_str_scrs:    db 'Scrs:   ', 0
+
 wm_table:        times (WM_MAX_WINS * WM_STRIDE) db 0
 
 wm_drag_win:     dd -1
@@ -1825,11 +2048,12 @@ wm_clk_buf:      times 12 db 0
 sw_mode:         db SW_MODE_SW
 sw_running:      db 0
 sw_ticks:        dd 0            ; centiseconds to display
-sw_ticks_end:    dd 0            ; timer: total centiseconds target
+sw_ticks_end:    dd 0            ; timer: total SECONDS entered by user
 sw_cs:           dd 0            ; scratch for wm_draw_clock
 sw_cs_count:     dd 0            ; total centiseconds elapsed since start
 sw_start_offset: dd 0            ; centiseconds saved before pause
 sw_last_pit:     dd 0            ; pit_ticks snapshot from last update
+sw_rtc_secs:     dd 0            ; RTC seconds elapsed since timer start
 
 wm_fbuf:         times 20 db 0
 wm_fbuf2:        times 12 db 0
@@ -1838,19 +2062,19 @@ wm_fy:           dd 0
 wm_fy_max:       dd 0
 wm_fcount:       dd 0
 
-wm_s_brand:      db 'ClaudeOS', 0
-wm_s_logo:       db 'ClaudeOS', 0
+wm_s_brand:      db 'NatureOS', 0
+wm_s_logo:       db 'NatureOS', 0
 wm_s_logo_ver:   db 'v2.0', 0
-wm_s_watermark_os:    db 'ClaudeOS', 0
+wm_s_watermark_os:    db 'NatureOS', 0
 wm_s_watermark_build: db 'Build 2.0.0', 0
 wm_s_term:       db 'Terminal', 0
 wm_s_clock:      db 'Stopwatch', 0
 wm_s_files:      db 'Files', 0
-wm_s_help:       db 'About ClaudeOS', 0
+wm_s_help:       db 'About NatureOS', 0
 
 ; Help window content
-wm_s_help_title: db 'ClaudeOS  Build 2.0.0', 0
-wm_s_help_sep:   db '------------------------------', 0
+wm_s_help_title: db 'NatureOS  Build 2.0.0', 0
+wm_s_help_sep:   db '-', 0
 wm_s_help_l1:    db 'A hobby OS built in x86 assembly,', 0
 wm_s_help_l2:    db 'running in 32-bit protected mode', 0
 wm_s_help_l3:    db 'with a VBE graphical desktop,', 0
@@ -1860,7 +2084,7 @@ wm_s_help_c1:    db '  term / files / stopwatch', 0
 wm_s_help_c2:    db '  timer MM:SS  (countdown)', 0
 wm_s_help_c3:    db '  calc <n> <op> <n>', 0
 wm_s_help_c4:    db '  ping <ip>  arping <ip>', 0
-wm_s_help_c5:    db '  pci  ifconfig  arp', 0
+wm_s_help_c5:    db '  pci  ifconfig  arp  dns', 0
 wm_s_help_sec3:  db 'Desktop:', 0
 wm_s_help_w1:    db '  Click icons or start menu', 0
 wm_s_help_w2:    db '  Drag windows by title bar', 0

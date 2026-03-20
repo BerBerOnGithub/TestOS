@@ -47,17 +47,17 @@ VBEM_BPP        equ 0x19
 VBEM_MODEL      equ 0x1B
 VBEM_PHYSBASE   equ 0x28
 
-; ---------------------------------------------------------------------------
+; -
 ; vbe_init
 ; Call once at boot in real mode.
 ; Sets vbe_ok=1 and populates vbe_* vars on success.
 ; Sets vbe_ok=0 and leaves video in text mode on failure.
 ; Trashes AX, BX, CX, DX, SI, DI, ES. Preserves DS.
-; ---------------------------------------------------------------------------
+; -
 vbe_init:
     push ds
 
-    ; ── Step 1: Get VBE Controller Info (INT 10h AX=4F00h) ───────────────
+    ; - Step 1: Get VBE Controller Info (INT 10h AX=4F00h) -
     ; Write "VBE2" into the buffer first to request VBE 2.0 data
     mov  ax, VBE_INFO_SEG
     mov  es, ax
@@ -80,13 +80,13 @@ vbe_init:
     cmp  word [es:di+4], 0x0200
     jb   .fail
 
-    ; ── Step 2: Get mode list pointer (far ptr at offset 0x0E) ───────────
+    ; - Step 2: Get mode list pointer (far ptr at offset 0x0E) -
     ; VideoModePtr is a 32-bit far pointer: low word = offset, high word = segment
     mov  si, [es:di+0x0E]       ; offset
     mov  ax, [es:di+0x10]       ; segment
     mov  ds, ax                 ; DS:SI = mode list
 
-    ; ── Step 3: Walk the mode list ────────────────────────────────────────
+    ; - Step 3: Walk the mode list -
 .scan_loop:
     lodsw                       ; AX = next mode number, SI advances
     cmp  ax, 0xFFFF             ; end of list sentinel
@@ -133,7 +133,7 @@ vbe_init:
     cmp  byte [es:di + VBEM_BPP],  VBE_TARGET_BPP
     jne  .scan_loop
 
-    ; ── Step 4: Found our mode — save info before setting ─────────────────
+    ; - Step 4: Found our mode " save info before setting -
     ; Restore DS=0 so we can write to kernel variables
     pop  ds
     push ds                     ; keep DS on stack for final pop
@@ -153,13 +153,13 @@ vbe_init:
     mov  al, [es:di + VBEM_BPP]
     mov  [vbe_bpp], al
 
-    ; physbase is a 32-bit value — read as two words
+    ; physbase is a 32-bit value " read as two words
     mov  ax, [es:di + VBEM_PHYSBASE]
     mov  [vbe_physbase], ax
     mov  ax, [es:di + VBEM_PHYSBASE + 2]
     mov  [vbe_physbase + 2], ax
 
-    ; ── Step 5: Set the mode (INT 10h AX=4F02h, BX=mode|0x4000) ─────────
+    ; - Step 5: Set the mode (INT 10h AX=4F02h, BX=mode|0x4000) -
     ; OR with 0x4000 to select linear framebuffer, bit 15 clear = clear VRAM
     mov  bx, cx
     or   bx, 0x4000
@@ -177,7 +177,7 @@ vbe_init:
     mov  ds, ax
     pop  ds                     ; pop the original DS push
 .fail_nodspop:
-    ; VBE failed — fall back to text mode 3
+    ; VBE failed " fall back to text mode 3
     mov  ax, 0x0003
     int  0x10
     mov  byte [vbe_ok], 0
@@ -191,9 +191,9 @@ vbe_init:
     pop  ds
     ret
 
-; ---------------------------------------------------------------------------
-; Data — written here, read by PM shell via flat 32-bit physical addressing
-; ---------------------------------------------------------------------------
+; -
+; Data " written here, read by PM shell via flat 32-bit physical addressing
+; -
 vbe_ok:       db 0
 vbe_bpp:      db 0
 vbe_width:    dw 0

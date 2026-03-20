@@ -8,7 +8,7 @@
 ; before re-entering PM. We store the GDTR descriptor at a known low address.
 ;
 ; Stub copied to 0x7E00 (just after MBR area, always free, below 64KB):
-;   0x7E00: 16-bit PM → real mode → INT 13h → PM re-entry → ret trampoline
+;   0x7E00: 16-bit PM -> real mode -> INT 13h -> PM re-entry -> ret trampoline
 ;
 ; ESP saved to memory before mode switch, restored in ret trampoline.
 ; ALL interrupts masked before switch, IRQ0 unmasked after.
@@ -18,9 +18,9 @@
 
 BD_HDR_BASE  equ 0x80000
 BD_MAGIC     equ 0x44464C43
-BD_BOUNCE    equ 0x70000   ; 448KB — above stack, below 1MB, BIOS-visible
+BD_BOUNCE    equ 0x70000   ; 448KB - above stack, below 1MB, BIOS-visible
 BD_DAP       equ 0x7D00    ; just below stub, definitely below 64KB
-BD_STUB      equ 0x7E00    ; stub location — below 64KB, always free RAM
+BD_STUB      equ 0x7E00    ; stub location - below 64KB, always free RAM
 
 ; Offsets within stub for shared variables
 BD_STUB_GDTR equ 0x7F00    ; 6-byte GDTR saved here
@@ -29,7 +29,7 @@ BD_STUB_ESP  equ 0x7F10    ; saved 32-bit ESP
 BD_STUB_CMD  equ 0x7F14    ; INT 13h AH value (0x42=read, 0x43=write)
 BD_STUB_DRV  equ 0x7F15    ; drive number
 
-; ── bios_disk_init ────────────────────────────────────────────────────────────
+; - bios_disk_init -
 bios_disk_init:
     pusha
     mov  byte [bd_ready], 0
@@ -43,7 +43,7 @@ bios_disk_init:
     popa
     ret
 
-; ── bd_install_stub ───────────────────────────────────────────────────────────
+; - bd_install_stub -
 bd_install_stub:
     push esi
     push edi
@@ -57,13 +57,9 @@ bd_install_stub:
     pop  esi
     ret
 
-; ── bd_do_int13 ───────────────────────────────────────────────────────────────
+; - bd_do_int13 -
 bd_do_int13:
     pushad
-    push esi
-    mov  esi, bd_dbg_int13_enter
-    call serial_print
-    pop  esi
     ; mask all IRQs
     mov  al, 0xFF
     out  0x21, al
@@ -78,10 +74,6 @@ bd_do_int13:
     mov  [BD_STUB_CMD], al
     mov  al, [bd_drive]
     mov  [BD_STUB_DRV], al
-    push esi
-    mov  esi, bd_dbg_int13_jump
-    call serial_print
-    pop  esi
     cli
     ; far jump to 16-bit code selector 0x18, offset BD_STUB (< 64KB)
     db   0xEA
@@ -90,10 +82,10 @@ bd_do_int13:
 
 bd_do_int13_ret:
     ; stub now handles PIC reinit and ret directly
-    ; this label kept for reference only — never jumped to
+    ; this label kept for reference only - never jumped to
     ret
 
-; ── bd_stub_code ──────────────────────────────────────────────────────────────
+; - bd_stub_code -
 ; Copied to BD_STUB (0x7E00). All hardcoded addresses reference 0x7Exx/0x7Fxx.
 [BITS 16]
 bd_stub_code:
@@ -128,39 +120,23 @@ bd_stub_code:
     mov  dword [0x7FF2], 0x00000000
     lidt [0x7FF0]
     sti
-    ; serial: print 'W' before int 13h
-    mov  dx, 0x3FD
-.w1: in   al, dx
-    test al, 0x20
-    jz   .w1
-    mov  dx, 0x3F8
-    mov  al, 'W'
-    out  dx, al
     ; call INT 13h
     mov  ah, [0x7F14]
     xor  al, al
     mov  dl, [0x7F15]
     mov  si, BD_DAP
     int  0x13
-    ; serial: print 'D' after int 13h returns
-    mov  dx, 0x3FD
-.w2: in   al, dx
-    test al, 0x20
-    jz   .w2
-    mov  dx, 0x3F8
-    mov  al, 'D'
-    out  dx, al
     cli
     ; reload GDT and IDT (BIOS may have clobbered them)
     lgdt [0x7F00]           ; BD_STUB_GDTR
-    lidt [0x7F06]           ; BD_STUB_IDTR — restore PM IDT
+    lidt [0x7F06]           ; BD_STUB_IDTR - restore PM IDT
     ; re-enable PE
     mov  eax, cr0
     or   eax, 1
     mov  cr0, eax
-    ; far jump to 32-bit code selector — target must be < 0x10000
+    ; far jump to 32-bit code selector - target must be < 0x10000
     db   0x66, 0xEA         ; 32-bit far jump (operand size prefix)
-    dw   0x7EC0             ; offset — stub PM return code
+    dw   0x7EC0             ; offset - stub PM return code
     dw   0x00               ; pad (high word of 32-bit offset = 0)
     dw   0x08               ; CS selector
     ; pad to offset 0xC0
@@ -174,7 +150,7 @@ bd_stub_code:
     mov  fs, ax
     mov  gs, ax
     mov  ss, ax
-    mov  esp, [BD_STUB_ESP] ; restore ESP — return addr is on stack
+    mov  esp, [BD_STUB_ESP] ; restore ESP - return addr is on stack
     mov  al, 0x11
     out  0x20, al
     out  0xA0, al
@@ -199,7 +175,7 @@ bd_stub_code:
 bd_stub_code_end:
 [BITS 32]
 
-; ── bios_disk_read ────────────────────────────────────────────────────────────
+; - bios_disk_read -
 bios_disk_read:
     push eax
     push ebx
@@ -244,7 +220,7 @@ bios_disk_read:
     pop  eax
     ret
 
-; ── bios_disk_write ───────────────────────────────────────────────────────────
+; - bios_disk_write -
 bios_disk_write:
     push eax
     push ebx
@@ -288,7 +264,7 @@ bios_disk_write:
     pop  eax
     ret
 
-; ── bios_disk_write_multi ─────────────────────────────────────────────────────
+; - bios_disk_write_multi -
 bios_disk_write_multi:
     push eax
     push ebx
@@ -296,10 +272,6 @@ bios_disk_write_multi:
     push edx
     push esi
     push edi
-    push esi
-    mov  esi, bd_dbg_multi_enter
-    call serial_print
-    pop  esi
     cmp  byte [bd_ready], 1
     jne  .done
     mov  [bd_cur_lba], eax
@@ -307,10 +279,6 @@ bios_disk_write_multi:
 .chunk:
     test ebx, ebx
     jz   .done
-    push esi
-    mov  esi, bd_dbg_multi_chunk
-    call serial_print
-    pop  esi
     mov  ecx, ebx
     cmp  ecx, 63
     jle  .ok
@@ -338,27 +306,15 @@ bios_disk_write_multi:
     mov  dword [BD_DAP+8],  eax
     mov  dword [BD_DAP+12], 0
     mov  byte  [bd_cmd],    0x43
-    push esi
-    mov  esi, bd_dbg_calling
-    call serial_print
-    pop  esi
     push ecx
     push ebx
     call bd_do_int13
     pop  ebx
     pop  ecx
-    push esi
-    mov  esi, bd_dbg_multi_ok
-    call serial_print
-    pop  esi
     add  [bd_cur_lba], ecx
     sub  ebx, ecx
     jmp  .chunk
 .done:
-    push esi
-    mov  esi, bd_dbg_multi_done
-    call serial_print
-    pop  esi
     pop  edi
     pop  esi
     pop  edx
@@ -367,16 +323,8 @@ bios_disk_write_multi:
     pop  eax
     ret
 
-; ── data ──────────────────────────────────────────────────────────────────────
+; - data -
 bd_ready:    db 0
 bd_drive:    db 0x80
 bd_cmd:      db 0x42
 bd_cur_lba:  dd 0
-bd_dbg_int13_enter: db 'INT13:enter', 13, 10, 0
-bd_dbg_int13_jump:  db 'INT13:jump->rm', 13, 10, 0
-bd_dbg_int13_ret:   db 'INT13:returned', 13, 10, 0
-bd_dbg_multi_enter: db 'MULTI:enter', 13, 10, 0
-bd_dbg_multi_chunk: db 'MULTI:chunk', 13, 10, 0
-bd_dbg_multi_ok:    db 'MULTI:chunk ok', 13, 10, 0
-bd_dbg_multi_done:  db 'MULTI:done', 13, 10, 0
-bd_dbg_calling:     db 'CALLING:int13', 13, 10, 0

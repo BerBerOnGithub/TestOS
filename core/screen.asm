@@ -2,9 +2,9 @@
 ; core/screen.asm - VGA screen output routines
 ; ===========================================================================
 
-; ---------------------------------------------------------------------------
+; -
 ; screen_clear - clear screen and home cursor
-; ---------------------------------------------------------------------------
+; -
 screen_clear:
     push ax
     push bx
@@ -26,9 +26,9 @@ screen_clear:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; nl - print CR+LF using putc_color so shell_attr is respected on scroll
-; ---------------------------------------------------------------------------
+; -
 nl:
     push ax
     push bx
@@ -41,9 +41,9 @@ nl:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; do_scroll - scroll screen up one line, fill new row with shell_attr
-; ---------------------------------------------------------------------------
+; -
 do_scroll:
     push ax
     push bx
@@ -61,13 +61,13 @@ do_scroll:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; putc_color - write char AL with attribute BL, advance cursor
 ;
 ; BL is treated as the FOREGROUND nibble only (low 4 bits used).
 ; The background nibble is always taken from [shell_attr] high nibble,
 ; so typed characters never paint a black box over the current background.
-; ---------------------------------------------------------------------------
+; -
 putc_color:
     push ax
     push bx
@@ -81,7 +81,7 @@ putc_color:
     cmp  al, 8
     je   .do_bs
 
-    ; ── Always use shell_attr for the full attribute (bg + fg) ───────────
+    ; - Always use shell_attr for the full attribute (bg + fg) -
     ; Caller's BL is used only for special strings that need specific fg
     ; colours (e.g. error red, header cyan). We preserve the bg from
     ; shell_attr in all cases so no black boxes appear.
@@ -158,9 +158,9 @@ putc_color:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; puts - print null-terminated string at SI using shell_attr color
-; ---------------------------------------------------------------------------
+; -
 puts:
     push ax
     push bx
@@ -178,9 +178,9 @@ puts:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; puts_c - print null-terminated string at SI with explicit color in BL
-; ---------------------------------------------------------------------------
+; -
 puts_c:
     push ax
     push bx
@@ -197,9 +197,9 @@ puts_c:
     pop  ax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; show_banner / show_motd - boot graphics
-; ---------------------------------------------------------------------------
+; -
 show_banner:
     push si
     push bx

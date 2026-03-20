@@ -45,7 +45,7 @@ HDR_LBA     = 0
 FLAG_FREE   = 0
 FLAG_USED   = 1
 
-# ── helpers ──────────────────────────────────────────────────────────────────
+# - helpers -
 
 def read_sector(f, lba, count=1):
     f.seek(lba * SECTOR)
@@ -91,7 +91,7 @@ def set_entry(raw_dir, idx, name, start, size, flags):
         name_b, start, size, flags, b'\x00\x00\x00\x00')
 
 def alloc_sector(entries, total_sects):
-    """Find first free sector after DATA_START by high-watermark."""
+    """Find first free sector after DATA_START by high-watermark-
     high = DATA_START
     for e in entries:
         if e['flags'] == FLAG_USED:
@@ -108,14 +108,14 @@ def sizeof_fmt(n):
     else:
         return f'{n//(1024*1024)}Mb'
 
-# ── commands ─────────────────────────────────────────────────────────────────
+# - commands -
 
 def cmd_list():
     with open(DISK, 'rb') as f:
         hdr = read_header(f)
         entries, _ = read_dir(f)
     used = [e for e in entries if e['flags'] == FLAG_USED]
-    print(f'ClaudeFS Data — {DISK}')
+    print(f'ClaudeFS Data - {DISK}')
     print(f'  {hdr["used"]} file(s) used, {hdr["total_sects"]} sectors total '
           f'({hdr["total_sects"]*SECTOR//1024}Kb disk)')
     print()
@@ -198,7 +198,7 @@ def cmd_get(name, outfile=None):
 
     with open(outfile, 'wb') as f:
         f.write(data)
-    print(f'  Extracted "{name}" → {outfile} ({sizeof_fmt(len(data))})')
+    print(f'  Extracted "{name}" -> {outfile} ({sizeof_fmt(len(data))})')
 
 def cmd_del(name):
     with open(DISK, 'r+b') as f:
@@ -230,7 +230,7 @@ def cmd_format():
         write_header(f, hdr)
     print('  Formatted. All files removed.')
 
-# ── main ─────────────────────────────────────────────────────────────────────
+# - main -
 
 def usage():
     print('ClaudeFS Data disk tool')

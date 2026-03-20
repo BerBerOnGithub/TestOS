@@ -1,19 +1,19 @@
-; ---------------------------------------------------------------------------
-; irq.asm — IDT setup, PIC remap, PIT IRQ0 handler
+; -
+; irq.asm " IDT setup, PIC remap, PIT IRQ0 handler
 ;
 ; Exports:
-;   irq_init        — remap PIC, install IDT, enable IRQ0
-;   pit_ticks       — dd, incremented at 100Hz by IRQ0 handler
-; ---------------------------------------------------------------------------
+;   irq_init        " remap PIC, install IDT, enable IRQ0
+;   pit_ticks       " dd, incremented at 100Hz by IRQ0 handler
+; -
 
-; ── irq_init ──────────────────────────────────────────────────────────────────
+; - irq_init -
 ; Remaps PIC so IRQ0-7 -> INT 0x20-0x27, IRQ8-15 -> INT 0x28-0x2F
 ; Builds a 256-entry IDT (all stubs, IRQ0 = real handler)
 ; Loads IDT and enables interrupts.
 irq_init:
     pusha
 
-    ; ── remap PIC ─────────────────────────────────────────────────────────
+    ; - remap PIC -
     mov  al, 0x11
     out  0x20, al
     out  0xA0, al
@@ -33,7 +33,7 @@ irq_init:
     mov  al, 0xFF
     out  0xA1, al
 
-    ; ── build IDT — fill all 256 entries with irq_stub ────────────────────
+    ; - build IDT " fill all 256 entries with irq_stub -
     mov  ecx, 256
     mov  edi, idt_table
 .fill:
@@ -48,7 +48,7 @@ irq_init:
     dec  ecx
     jnz  .fill
 
-    ; ── install IRQ0 (PIT) handler at vector 0x20 ─────────────────────────
+    ; - install IRQ0 (PIT) handler at vector 0x20 -
     mov  edi, idt_table + (0x20 * 8)
     mov  eax, irq0_handler
     mov  word  [edi],   ax
@@ -58,7 +58,7 @@ irq_init:
     shr  eax, 16
     mov  word  [edi+6], ax
 
-    ; ── install error-code stubs for exceptions that push an error code ───
+    ; - install error-code stubs for exceptions that push an error code -
 %macro set_err_gate 1
     mov  edi, idt_table + (%1 * 8)
     mov  eax, irq_stub_err
@@ -78,7 +78,7 @@ irq_init:
     set_err_gate 0x0E   ; #PF page fault
     set_err_gate 0x11   ; #AC alignment check
 
-    ; ── load IDTR ─────────────────────────────────────────────────────────
+    ; - load IDTR -
     mov  word  [idt_desc],   256*8 - 1
     mov  dword [idt_desc+2], idt_table
     lidt [idt_desc]
@@ -87,7 +87,7 @@ irq_init:
     popa
     ret
 
-; ── IRQ0 handler (PIT, 100Hz) ─────────────────────────────────────────────────
+; - IRQ0 handler (PIT, 100Hz) -
 irq0_handler:
     push eax
     inc  dword [pit_ticks]
@@ -96,7 +96,7 @@ irq0_handler:
     pop  eax
     iret
 
-; ── generic stub (no error code) ──────────────────────────────────────────────
+; - generic stub (no error code) -
 irq_stub:
     push eax
     mov  al, 0x20
@@ -105,12 +105,12 @@ irq_stub:
     pop  eax
     iret
 
-; ── stub for exceptions that push an error code ───────────────────────────────
+; - stub for exceptions that push an error code -
 irq_stub_err:
     add  esp, 4        ; discard error code
     hlt
 
-; ── data ──────────────────────────────────────────────────────────────────────
+; - data -
 pit_ticks:   dd 0
 
 idt_desc:

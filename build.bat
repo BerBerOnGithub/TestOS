@@ -7,7 +7,11 @@ setlocal
 
 if /i "%~1"=="clean" goto :clean
 
-REM --- find NASM ---
+REM - strip BOMs from all source files before doing anything else -
+echo [0/6] Stripping BOMs...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0bom.ps1" >nul 2>&1
+
+REM - find NASM -
 set "NASM=nasm"
 where nasm >nul 2>&1
 if errorlevel 1 (
@@ -16,7 +20,7 @@ if errorlevel 1 (
     )
 )
 
-REM --- check pycdlib ---
+REM - check pycdlib -
 python -c "import pycdlib" >nul 2>&1
 if errorlevel 1 (
     echo pycdlib not found - installing...

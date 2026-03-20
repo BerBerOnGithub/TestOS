@@ -29,9 +29,9 @@ GFX_W        equ 640
 GFX_H        equ 480
 GFX_PIX      equ GFX_W * GFX_H
 
-; ---------------------------------------------------------------------------
+; -
 ; gfx_init
-; ---------------------------------------------------------------------------
+; -
 gfx_init:
     push eax
     push ecx
@@ -51,21 +51,23 @@ gfx_init:
     xor  eax, eax
     rep  stosd
 
-    ; zero MMIO so display starts black
+    ; zero MMIO only if vbe_physbase is valid (above 1MB) - never zero low memory
     mov  edi, [gfx_hw_base]
+    cmp  edi, 0x100000       ; sanity check: must be above 1MB
+    jb   .skip_mmio_zero
     mov  ecx, GFX_PIX / 4
     xor  eax, eax
     rep  stosd
-
+.skip_mmio_zero:
     pop  edi
     pop  ecx
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; gfx_flush - blit GFX_SHADOW -> MMIO hardware framebuffer
 ; Call at the end of every complete draw operation.
-; ---------------------------------------------------------------------------
+; -
 gfx_flush:
     push eax
     push ecx
@@ -81,10 +83,10 @@ gfx_flush:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; gfx_row_ptr - compute EDI = shadow address of pixel (EAX=x, EBX=y)
 ; Trashes EDI only.
-; ---------------------------------------------------------------------------
+; -
 gfx_row_ptr:
     push eax
     push edx
@@ -97,9 +99,9 @@ gfx_row_ptr:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; fb_clear - fill entire shadow with colour AL then flush
-; ---------------------------------------------------------------------------
+; -
 fb_clear:
     push eax
     push ecx
@@ -113,9 +115,9 @@ fb_clear:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; fb_draw_pixel - EAX=x, EBX=y, CL=colour
-; ---------------------------------------------------------------------------
+; -
 fb_draw_pixel:
     push edi
     call gfx_row_ptr
@@ -123,9 +125,9 @@ fb_draw_pixel:
     pop  edi
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; fb_hline - EAX=x, EBX=y, EDX=width, CL=colour
-; ---------------------------------------------------------------------------
+; -
 fb_hline:
     push ecx
     push edi
@@ -137,9 +139,9 @@ fb_hline:
     pop  ecx
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; fb_vline - EAX=x, EBX=y, EDX=height, CL=colour
-; ---------------------------------------------------------------------------
+; -
 fb_vline:
     push eax
     push ebx
@@ -160,9 +162,9 @@ fb_vline:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; fb_set_pixel - EAX=x, EBX=y, CL=colour  (alias for fb_draw_pixel)
-; ---------------------------------------------------------------------------
+; -
 fb_set_pixel:
     push edi
     push edx
@@ -178,9 +180,9 @@ fb_set_pixel:
     pop  edi
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; fb_fill_rect - EAX=x, EBX=y, ECX=width, EDX=height, ESI=colour
-; ---------------------------------------------------------------------------
+; -
 fb_fill_rect:
     push eax
     push ebx
@@ -216,9 +218,9 @@ fb_fill_rect:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; fb_draw_rect_outline - EAX=x, EBX=y, ECX=width, EDX=height, ESI=colour
-; ---------------------------------------------------------------------------
+; -
 fb_draw_rect_outline:
     push eax
     push ebx
@@ -258,9 +260,9 @@ fb_draw_rect_outline:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; fb_xor_rect_outline - EAX=x, EBX=y, ECX=width, EDX=height
-; ---------------------------------------------------------------------------
+; -
 fb_xor_rect_outline:
     push eax
     push ebx
@@ -310,9 +312,9 @@ fb_xor_rect_outline:
     pop  eax
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Data
-; ---------------------------------------------------------------------------
+; -
 gfx_fb_base:   dd GFX_SHADOW
 gfx_hw_base:   dd 0
 gfx_fb_pitch:  dd GFX_W

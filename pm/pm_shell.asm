@@ -2,9 +2,9 @@
 ; pm/pm_shell.asm - 32-bit Protected Mode entry point and shell dispatcher
 ; ===========================================================================
 
-; ---------------------------------------------------------------------------
+; -
 ; 32-bit entry point - jumped to from cmd_system.asm after CR0.PE is set
-; ---------------------------------------------------------------------------
+; -
 [BITS 32]
 
 pm_entry:
@@ -15,10 +15,11 @@ pm_entry:
     mov  gs, ax
     mov  ss, ax
     mov  esp, 0x9e000
-    call irq_init           ; remap PIC, install IDT, enable IRQ0 at 100Hz
-    call pm_drv_init
     call bios_disk_init     ; detect data drive via BIOS INT 13h
     call fsd_init           ; read ClaudeFS data directory into RAM
+    call pm_drv_init        ; init NIC before interrupts are enabled
+    call irq_init           ; remap PIC, install IDT, enable IRQ0 at 100Hz
+    call scr_counter_init ; seed screenshot counter from existing files on disk
     call gfx_init
 
 
@@ -29,24 +30,8 @@ pm_entry:
     ; initialise window manager (draws desktop + taskbar)
     call wm_init
 
-    ; load wallpaper first — populates WP_REMAP used by icons + cursor
+    ; load wallpaper first ,! populates WP_REMAP used by icons + cursor
     call wallpaper_load
-
-    ; DEBUG: print first byte of GFX_SHADOW to serial
-    push eax
-    push edx
-    movzx eax, byte [0x500000]
-    add   al, '0'
-    mov   dx, 0x3FD
-.wsh: in al, dx
-    test  al, 0x20
-    jz    .wsh
-    mov   dx, 0x3F8
-    movzx eax, byte [0x500000]
-    add   al, '!'
-    out   dx, al
-    pop   edx
-    pop   eax
 
     ; try to load bitmap cursor from ClaudeFS
     call cursor_load_bmp
@@ -54,7 +39,7 @@ pm_entry:
     ; load desktop icons from ClaudeFS
     call icons_init
 
-    ; open the initial Terminal window — offset right to leave icon column
+    ; open the initial Terminal window ,! offset right to leave icon column
     mov  al,  WM_TERM
     mov  ebx, 110           ; x: leave 110px for icon column
     mov  ecx, 50
@@ -82,12 +67,12 @@ pm_entry:
     jz   .check_drag
     test bl, 0x01
     jnz  .check_drag        ; was already held
-    ; fresh press — check icons first
+    ; fresh press ,! check icons first
     mov  eax, [mouse_x]
     mov  ebx, [mouse_y]
     call icons_click
     jc   .btn_done          ; icon handled it
-    mov  eax, [mouse_x]    ; reload — icons_click clobbers EAX/EBX
+    mov  eax, [mouse_x]    ; reload ,! icons_click clobbers EAX/EBX
     mov  ebx, [mouse_y]
     call wm_on_click
     jmp  .btn_done
@@ -118,9 +103,9 @@ pm_entry:
 .no_scr:
     jmp  .loop
 
-; ---------------------------------------------------------------------------
-; .text_shell — VBE unavailable; run text-mode PM shell instead
-; ---------------------------------------------------------------------------
+; -
+; .text_shell ,! VBE unavailable; run text-mode PM shell instead
+; -
 .text_shell:
     call pm_cls
     mov  esi, pm_str_novbe
@@ -137,8 +122,8 @@ pm_shell_loop:
     jmp  pm_shell_loop
 
 ; pm_gfx_test removed - window manager (wm.asm) now handles all drawing
-; ---------------------------------------------------------------------------
-; pm_run_command — copy ESI string into pm_input_buf and execute it
+; -
+; pm_run_command ,! copy ESI string into pm_input_buf and execute it
 ; Used by the start menu to launch commands programmatically.
 pm_run_command:
     push esi
@@ -161,7 +146,7 @@ pm_run_command:
     ret
 
 ; pm_exec - dispatch command in pm_input_buf
-; ---------------------------------------------------------------------------
+; -
 pm_exec:
     push esi
     push edi
@@ -282,6 +267,31 @@ pm_exec:
     call pm_strcmp
     je   .savescr
 
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_pfx_dns
+    call pm_startswith
+    je   .dns
+
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_cmd_ls
+    call pm_strcmp
+    je   .ls
+
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_pfx_cat
+    call pm_startswith
+    je   .cat
+
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_pfx_rm
+    call pm_startswith
+    je   .rm
+
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_pfx_hexdump
+    call pm_startswith
+    je   .hexdump
+
     ; unknown
     mov  esi, pm_str_unknown
     mov  bl, 0x0C
@@ -330,6 +340,16 @@ pm_exec:
     jmp  .done
 .savescr:   call pm_cmd_savescr
     jmp  .done
+.dns:       call cmd_dns
+    jmp  .done
+.ls:        call pm_cmd_ls
+    jmp  .done
+.cat:       call pm_cmd_cat
+    jmp  .done
+.rm:        call pm_cmd_rm
+    jmp  .done
+.hexdump:   call pm_cmd_hexdump
+    jmp  .done
 .exit:  call pm_cmd_exit       ; does not return to here
 
 .done:
@@ -338,17 +358,17 @@ pm_exec:
     pop  esi
     ret
 
-; ---------------------------------------------------------------------------
-; ---------------------------------------------------------------------------
-; pm_cmd_stopwatch — open stopwatch window, or start/stop/reset if open
+; -
+; -
+; pm_cmd_stopwatch ,! open stopwatch window, or start/stop/reset if open
 ; Usage: stopwatch          -> open window in stopwatch mode
 ;        stopwatch          -> if window open: toggle start/stop
 ;        stopwatch reset    -> reset to 00:00.00
-; ---------------------------------------------------------------------------
+; -
 
-; ---------------------------------------------------------------------------
-; pm_cmd_term — open a new Terminal window
-; ---------------------------------------------------------------------------
+; -
+; pm_cmd_term ,! open a new Terminal window
+; -
 pm_cmd_term:
     pusha
     mov  al,  WM_TERM
@@ -371,9 +391,9 @@ pm_cmd_term:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; pm_cmd_diskinfo — probe all 4 ATA positions and print raw status bytes
-; ---------------------------------------------------------------------------
+; -
+; pm_cmd_diskinfo ,! probe all 4 ATA positions and print raw status bytes
+; -
 pm_cmd_diskinfo:
     pusha
 
@@ -451,7 +471,7 @@ pm_cmd_diskinfo:
     popa
     ret
 
-; ── term_print_hex_byte / word helpers ──────────────────────────────────────
+; - term_print_hex_byte / word helpers -
 term_print_hex_byte:
     push eax
     push ebx
@@ -512,9 +532,9 @@ di_str_magic_bad: db 'Magic: BAD', 0
 di_str_no_drive:  db 'No drive detected', 0
 di_sec0buf:      times 512 db 0
 
-; ---------------------------------------------------------------------------
-; pm_cmd_helpwin — open About/Help window
-; ---------------------------------------------------------------------------
+; -
+; pm_cmd_helpwin ,! open About/Help window
+; -
 pm_cmd_helpwin:
     pusha
     mov  al,  WM_HELP
@@ -603,14 +623,14 @@ pm_cmd_stopwatch:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; pm_cmd_timer — open countdown timer window
+; -
+; pm_cmd_timer ,! open countdown timer window
 ; Usage: timer MM:SS        -> open timer window counting down from MM:SS
-; ---------------------------------------------------------------------------
+; -
 pm_cmd_timer:
     pusha
 
-    ; parse "timer MM:SS" — skip "timer " prefix (6 chars)
+    ; parse "timer MM:SS" ,! skip "timer " prefix (6 chars)
     mov  esi, pm_input_buf
     add  esi, 6
 
@@ -650,9 +670,10 @@ pm_cmd_timer:
     mov  eax, [wm_clk_mm]
     imul eax, 60
     add  eax, [wm_clk_ss]
-    imul eax, 100
+    ; store in SECONDS (RTC-based timer uses seconds, not centiseconds)
     mov  [sw_ticks_end], eax
     mov  dword [sw_ticks], 0
+    mov  dword [sw_rtc_secs], 0     ; reset RTC elapsed counter
     mov  byte  [sw_mode],    SW_MODE_TIMER
     mov  byte  [sw_running], 1
 
@@ -682,9 +703,9 @@ pm_cmd_timer:
     popa
     ret
 
-; ---------------------------------------------------------------------------
-; pm_cmd_files  — open a Files window
-; ---------------------------------------------------------------------------
+; -
+; pm_cmd_files  ,! open a Files window
+; -
 pm_cmd_files:
     pusha
     mov  al,  WM_FILES
@@ -707,9 +728,9 @@ pm_cmd_files:
     popa
     ret
 
-; ---------------------------------------------------------------------------
+; -
 ; Sub-modules
-; ---------------------------------------------------------------------------
+; -
 %include "pm/pm_screen.asm"
 %include "pm/pm_keyboard.asm"
 %include "pm/pm_string.asm"

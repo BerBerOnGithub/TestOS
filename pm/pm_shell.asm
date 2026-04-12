@@ -21,6 +21,7 @@ pm_entry:
     call irq_init           ; remap PIC, install IDT, enable IRQ0 at 100Hz
     call scr_counter_init ; seed screenshot counter from existing files on disk
     call gfx_init
+    call mem_init          ; initialize memory allocator
 
 
     ; If VBE failed, skip the graphical WM entirely and use text-mode shell

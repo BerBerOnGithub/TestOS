@@ -586,4 +586,5 @@ str_booting_rm:
 %include "pm/irq.asm"
 %include "pm/bios_disk.asm"
 %include "pm/fs_data.asm"
+%include "pm/mem_alloc.asm"
 %include "pm/wm_screenshot.asm"

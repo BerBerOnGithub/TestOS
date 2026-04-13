@@ -696,7 +696,6 @@ br_dispatch_tag:
     ; update window title
     mov  edi, [br_win]
     mov  dword [edi+20], browser_title_buf
-    call wm_draw_all
     jmp  .tag_done
 .close_ck_p:
     mov  al, [br_tag_buf+1]
@@ -1313,7 +1312,10 @@ browser_go_back:
 ; ===========================================================================
 browser_fetch:
     pusha
+    cmp  byte [br_fetching], 1
+    je   .done_busy
 
+    mov  byte [br_fetching], 1
     mov  edi, browser_status
     mov  esi, browser_s_connecting
     call .copy_str
@@ -1534,6 +1536,7 @@ browser_fetch:
     call tcp_close
     call browser_strip_headers
     call browser_update_done_status
+    mov  byte [br_fetching], 0
     jmp  .done
 
 .err_url:
@@ -1553,6 +1556,11 @@ browser_fetch:
     call .copy_str
     pop  esi
 .done:
+    mov  byte [br_fetching], 0
+    popa
+    ret
+
+.done_busy:
     popa
     ret
 
@@ -1704,6 +1712,7 @@ browser_status:     times 64 db 0
 browser_title_buf:  times 64 db 0
 browser_scroll_y:   dd 0
 browser_rx_total:   dd 0
+br_fetching:        db 0
 
 ; UI strings
 browser_s_go:           db 'Go', 0

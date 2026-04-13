@@ -23,7 +23,7 @@
 
 [BITS 32]
 
-FS_PM_BASE   equ  0x20000
+FS_PM_BASE   equ  0x30000
 FS_ENT_SZ    equ  24
 FS_NAME_LEN  equ  16
 

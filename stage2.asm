@@ -15,8 +15,8 @@
 [ORG 0x7E00]
 
 KERNEL_OFFSET equ 1    ; flat-image-relative: kernel at base+1
-FS_OFFSET     equ 51   ; flat-image-relative: FS at base+51
-KERNEL_COUNT  equ 50
+FS_OFFSET     equ 101  ; flat-image-relative: FS at base+101 (200 sectors later)
+KERNEL_COUNT  equ 100
 FS_COUNT      equ 400
 
 SCRATCH_SEG   equ 0x0600
@@ -86,11 +86,11 @@ stage2_start:
     jc   .err
 
     ; -
-    ; Step 4: Load FS +' 0x2000:0x0000 = physical 0x20000
+    ; Step 4: Load FS +' 0x3000:0x0000 = physical 0x30000
     ; -
     mov  si, msg_fs
     call puts
-    mov  ax, 0x2000
+    mov  ax, 0x3000
     mov  es, ax
     mov  word [buf_off], 0x0000
     mov  eax, [base_lba]
@@ -240,10 +240,10 @@ dap:
 .lba_lo:  dd 0
 .lba_hi:  dd 0
 
-msg_hello:  db 'NatureOS stage2', 13, 10, 0
-msg_noext:  db 'ERROR: No INT13 ext', 13, 10, 0
-msg_kernel: db 'Loading kernel...', 13, 10, 0
-msg_fs:     db 'Loading FS...', 13, 10, 0
-msg_ok:     db 'OK', 13, 10, 0
-msg_error:  db 'ERROR: load failed', 13, 10, 0
-msg_data_ok: db 'Data disk found', 13, 10, 0
+msg_hello:  db 'S2', 13, 10, 0
+msg_noext:  db 'E1', 13, 10, 0
+msg_kernel: db 'K', 0
+msg_fs:     db 'F', 0
+msg_ok:     db 'O', 0
+msg_error:  db 'E', 0
+msg_data_ok: db 'D', 0

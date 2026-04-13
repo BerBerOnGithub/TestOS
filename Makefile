@@ -15,9 +15,9 @@ ISO        := claudeos.iso
 # Sector layout - aligned to 2048-byte CD sectors (4 x 512-byte sectors each)
 # 2048-LBA 0 = 512-sector 0: boot.bin + stage2 (preloaded by El Torito)
 # 2048-LBA 1 = 512-sector 4: kernel
-# 2048-LBA 51= 512-sector 204: FS
+# 2048-LBA 101= 512-sector 404: FS
 KERNEL_START_SECTOR := 4
-FS_START_SECTOR     := 204
+FS_START_SECTOR     := 404
 FS_SECTORS          := 1600
 FLAT_SECTORS        := $(shell echo $$(($(FS_START_SECTOR) + $(FS_SECTORS))))
 

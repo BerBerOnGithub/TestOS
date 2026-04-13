@@ -25,7 +25,7 @@ pm_entry:
 
     ; If VBE failed, skip the graphical WM entirely and use text-mode shell
     cmp  byte [vbe_ok], 1
-    jne  .text_shell
+    jne  pm_text_shell
 
     ; initialise window manager (draws desktop + taskbar)
     call wm_init
@@ -54,9 +54,17 @@ pm_entry:
     call term_init
 
 .loop:
+    call pm_poll_events
+    jmp  .loop
+
+; -
+; pm_poll_events - One iteration of the UI event loop
+; -
+pm_poll_events:
+    pusha
     call mouse_poll
 
-    ; update icon hover state (for future use)
+    ; update icon hover state
     call icons_hover
 
     ; check for window manager mouse events
@@ -68,12 +76,12 @@ pm_entry:
     jz   .check_drag
     test bl, 0x01
     jnz  .check_drag        ; was already held
-    ; fresh press ,! check icons first
+    ; fresh press
     mov  eax, [mouse_x]
     mov  ebx, [mouse_y]
     call icons_click
     jc   .btn_done          ; icon handled it
-    mov  eax, [mouse_x]    ; reload ,! icons_click clobbers EAX/EBX
+    mov  eax, [mouse_x]
     mov  ebx, [mouse_y]
     call wm_on_click
     jmp  .btn_done
@@ -96,22 +104,17 @@ pm_entry:
     mov  al, [mouse_btn]
     mov  [pm_prev_btn], al
 
-    jmp  $+2
-    jmp  $+2
-
-    ; refresh live window content (clock ticks, etc.)
+    ; refresh live window content
     call wm_update_contents
     call term_tick
     call browser_tick
-    cmp  byte [scr_pending], 1
-    jne  .no_scr
-.no_scr:
-    jmp  .loop
+    popa
+    ret
 
 ; -
-; .text_shell ,! VBE unavailable; run text-mode PM shell instead
+; pm_text_shell ,! VBE unavailable; run text-mode PM shell instead
 ; -
-.text_shell:
+pm_text_shell:
     call pm_cls
     mov  esi, pm_str_novbe
     mov  bl,  0x0C

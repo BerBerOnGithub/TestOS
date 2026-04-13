@@ -1940,7 +1940,29 @@ wm_draw_taskbar_clock:
     push esi
     push edi
 
-    ; read RTC
+    ; read RTC date
+    mov  al, 0x09
+    out  0x70, al
+    in   al, 0x71
+    movzx eax, al
+    call wm_bcd2bin
+    mov  [wm_clk_yy], eax
+
+    mov  al, 0x08
+    out  0x70, al
+    in   al, 0x71
+    movzx eax, al
+    call wm_bcd2bin
+    mov  [wm_clk_mo], eax
+
+    mov  al, 0x07
+    out  0x70, al
+    in   al, 0x71
+    movzx eax, al
+    call wm_bcd2bin
+    mov  [wm_clk_dd], eax
+
+    ; read RTC time
     mov  al, 0x04
     out  0x70, al
     in   al, 0x71
@@ -1962,8 +1984,23 @@ wm_draw_taskbar_clock:
     call wm_bcd2bin
     mov  [wm_clk_ss], eax
 
-    ; build "HH:MM:SS" in wm_clk_buf
+    ; build "YYYY-MM-DD HH:MM:SS" in wm_clk_buf
     mov  edi, wm_clk_buf
+    mov  byte [edi], '2'
+    mov  byte [edi+1], '0'
+    add  edi, 2
+    mov  eax, [wm_clk_yy]
+    call wm_d2
+    mov  byte [edi], '-'
+    inc  edi
+    mov  eax, [wm_clk_mo]
+    call wm_d2
+    mov  byte [edi], '-'
+    inc  edi
+    mov  eax, [wm_clk_dd]
+    call wm_d2
+    mov  byte [edi], ' '
+    inc  edi
     mov  eax, [wm_clk_hh]
     call wm_d2
     mov  byte [edi], ':'
@@ -1976,18 +2013,19 @@ wm_draw_taskbar_clock:
     call wm_d2
     mov  byte [edi], 0
 
-    ; erase old clock area: "HH:MM:SS" = 8 chars * 8px = 64px wide
-    ; right-aligned with 8px margin: x = 640 - 64 - 8 = 568
-    mov  eax, 568
+    ; erase old clock area
+    ; "20YY-MM-DD HH:MM:SS" = 19 chars * 8px = 152px wide
+    ; right-aligned with 8px margin: x = 640 - 152 - 8 = 480
+    mov  eax, 480
     mov  ebx, WM_TASKBAR_Y + 1
-    mov  ecx, 64
+    mov  ecx, 152
     mov  edx, WM_TASKBAR_H - 2
     mov  esi, WM_C_TBAR
     call fb_fill_rect
 
     ; draw clock string
     mov  esi, wm_clk_buf
-    mov  ebx, 568
+    mov  ebx, 480
     mov  ecx, WM_TASKBAR_Y + 5
     mov  dl,  0x0F              ; white
     mov  dh,  WM_C_TBAR
@@ -2268,7 +2306,10 @@ wm_op_h:         dd 0
 wm_clk_hh:       dd 0
 wm_clk_mm:       dd 0
 wm_clk_ss:       dd 0
-wm_clk_buf:      times 12 db 0
+wm_clk_dd:       dd 0
+wm_clk_mo:       dd 0
+wm_clk_yy:       dd 0
+wm_clk_buf:      times 24 db 0
 
 ; stopwatch/timer state
 sw_mode:         db SW_MODE_SW

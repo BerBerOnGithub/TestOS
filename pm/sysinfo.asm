@@ -248,8 +248,104 @@ pm_cmd_sysinfo:
     mov  esi, sysinfo_mem_ext
     mov  bl, 0x07
     call pm_puts
+    
+    ; If > 2048 KB, show in MB
+    cmp  eax, 2048
+    jb   .show_kb
+    
+    push eax
+    shr  eax, 10        ; KB -> MB
+    call pm_print_uint
+    mov  esi, sysinfo_mb
+    call pm_puts
+    pop  eax
+    
+    ; show remaining KB
+    mov  ebx, eax
+    and  ebx, 0x3FF
+    jz   .ext_done
+    mov  al, '('
+    mov  bl, 0x07
+    call pm_putc
+    mov  eax, ebx
     call pm_print_uint
     mov  esi, sysinfo_kb
+    call pm_puts
+    mov  al, ')'
+    mov  bl, 0x07
+    call pm_putc
+    jmp  .ext_done
+
+.show_kb:
+    call pm_print_uint
+    mov  esi, sysinfo_kb
+    call pm_puts
+
+.ext_done:
+    call pm_newline
+
+.storage:
+    ; --- Storage Info ---
+    mov  esi, sysinfo_storage_hdr
+    mov  bl, 0x0E
+    call pm_puts
+    
+    cmp  byte [fsd_ready], 1
+    jne  .no_storage
+    
+    ; Total
+    mov  esi, sysinfo_storage_tot
+    mov  bl, 0x07
+    call pm_puts
+    mov  eax, [fsd_hdr_buf + 12] ; total sectors
+    shr  eax, 1                  ; sectors -> KB
+    call .print_size
+    call pm_newline
+    
+    ; Used
+    mov  esi, sysinfo_storage_use
+    mov  bl, 0x07
+    call pm_puts
+    ; compute used
+    xor  eax, eax
+    push esi
+    push ecx
+    mov  esi, fsd_dir_buf
+    mov  ecx, FSD_MAX_ENT
+.used_loop:
+    cmp  dword [esi + 24], FSD_FLAG_USED
+    jne  .used_skip
+    mov  edx, [esi + 20]
+    add  edx, 511
+    shr  edx, 9
+    add  eax, edx
+.used_skip:
+    add  esi, FSD_ENT_SZ
+    loop .used_loop
+    pop  ecx
+    pop  esi
+    
+    push eax ; save used sectors
+    shr  eax, 1 ; KB
+    call .print_size
+    call pm_newline
+    
+    ; Free
+    mov  esi, sysinfo_storage_free
+    mov  bl, 0x07
+    call pm_puts
+    pop  eax ; used sectors
+    mov  ebx, [fsd_hdr_buf + 12]
+    sub  ebx, eax
+    mov  eax, ebx
+    shr  eax, 1 ; KB
+    call .print_size
+    call pm_newline
+    jmp  .tsc
+
+.no_storage:
+    mov  esi, sysinfo_not_found
+    mov  bl, 0x07
     call pm_puts
     call pm_newline
 
@@ -289,6 +385,27 @@ pm_cmd_sysinfo:
     popa
     ret
 
+.print_size:
+    ; In: EAX = KB
+    cmp  eax, 1024
+    jb   .ps_kb
+    push eax
+    shr  eax, 10
+    call pm_print_uint
+    mov  esi, sysinfo_mb
+    call pm_puts
+    pop  eax
+    and  eax, 0x3FF
+    jz   .ps_done
+    mov  al, ' '
+    call pm_putc
+.ps_kb:
+    call pm_print_uint
+    mov  esi, sysinfo_kb
+    call pm_puts
+.ps_done:
+    ret
+
 .print_feat:
     push ebx
     mov  bl, 0x0F
@@ -320,7 +437,13 @@ sysinfo_not_found:  db '  None found', 0
 sysinfo_mem_hdr:    db ' [Memory]', 13, 10, 0
 sysinfo_mem_conv:   db '  Conventional: ', 0
 sysinfo_mem_ext:    db '  Extended: ', 0
+sysinfo_mb:         db ' MB', 0
 sysinfo_kb:         db ' KB', 0
+
+sysinfo_storage_hdr: db ' [Storage]', 13, 10, 0
+sysinfo_storage_tot: db '  Total:   ', 0
+sysinfo_storage_use: db '  Used:    ', 0
+sysinfo_storage_free: db '  Free:    ', 0
 
 sysinfo_tsc_hdr:    db ' [TSC]', 13, 10, 0
 sysinfo_tsc_avail:  db '  Available', 13, 10, 0

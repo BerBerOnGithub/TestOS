@@ -16,6 +16,7 @@ pm_input_len:   dd 0
 pm_input_buf:   times 128 db 0
 pm_shift:       db 0         ; 1 if shift currently held
 pm_e0:          db 0         ; 1 if last scancode was E0 prefix
+pm_layout:      db 0         ; 0=latin, 1=cyrillic
 
 pm_calc_n1:     dd 0
 pm_calc_n2:     dd 0
@@ -57,6 +58,29 @@ pm_scancode_shift:
     db 0,   0,   0,   0,   0,   '7', '8', '9'    ; 42-49 (F9/F10/NumLk/ScLk/num7/8/9)
     db '-', '4', '5', '6', '+', '1', '2', '3'    ; 4A-51 (num-/4/5/6/+/1/2/3)
     db '0', '.'                                   ; 52-53 (num0/.)
+
+; Cyrillic (CP866 mapping)
+pm_scancode_cyrillic:
+    db 0,   27,  '1', '2', '3', '4', '5', '6'   ; 00-07
+    db '7', '8', '9', '0', '-', '=', 8,   9      ; 08-0F
+    db 0xA9, 0xE6, 0xE3, 0xAA, 0xA5, 0xAD, 0xA3, 0xAF ; 10-17 (q->й, w->ц, e->у, r->к, t->е, y->н, u->г, i->ш)
+    db 0xE9, 0xE4, 0xAE, 0xE5, 13,  0,   0xA4, 0xEB ; 18-1F (o->щ, p->з, [->х, ]->ъ, a->ф, s->ы)
+    db 0xA2, 0xA0, 0xAF, 0xE0, 0xAE, 0xAB, 0xA4, 0x96 ; 20-27 (d->в, f->а, g->п, h->р, j->о, k->л, l->д, ;->ж)
+    db 0x9D, 0xA1, 0,   0xAC, 0xEF, 0xEC, 0xE1, 0xAC ; 28-2F (э, ё, z->я, x->ч, c->с, v->м)
+    db 0xA8, 0xED, 0xAC, 0xA1, 0xEE, '.', 0,   '*'    ; 30-37 (b->и, n->т, m->ь, ,->б, .->ю)
+    db 0,   ' '
+    times 84-58 db 0
+
+pm_scancode_cyrillic_shift:
+    db 0,   27,  '!', '"', '#', ';', '%', ':'   ; 00-07
+    db '?', '*', '(', ')', '_', '+', 8,   9      ; 08-0F
+    db 0x89, 0x96, 0x93, 0x8A, 0x85, 0x8D, 0x83, 0x8F ; 10-17
+    db 0x99, 0x94, 0x8E, 0x95, 13,  0,   0x84, 0x9B ; 18-1F
+    db 0x82, 0x80, 0x8F, 0x90, 0x8E, 0x8B, 0x84, 0xB6 ; 20-27
+    db 0xBD, 0x81, 0,   0x8C, 0x9F, 0x9C, 0x91, 0x8C ; 28-2F
+    db 0x88, 0x9D, 0x8C, 0x81, 0x9E, ',', 0,   '*'    ; 30-37
+    db 0,   ' '
+    times 84-58 db 0
 
 ; -
 ; Shell strings

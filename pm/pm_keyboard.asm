@@ -67,12 +67,19 @@ pm_getkey:
     cmp  al, 0xB6
     je   .shift_off
 
-    test al, 0x80            ; key release " ignore
+    cmp  al, 0x46            ; Scroll Lock
+    je   .toggle_layout
+
+    test al, 0x80            ; key release
     jnz  .no_key
 
     movzx ebx, al
-    cmp  ebx, 84             ; 0x54 - include numpad range 0x47-0x53
+    cmp  ebx, 84             ; 0x54
     jae  .no_key
+
+    mov  cl, [pm_layout]
+    test cl, cl
+    jnz  .cyrillic
 
     cmp  byte [pm_shift], 0
     jne  .shifted
@@ -80,10 +87,23 @@ pm_getkey:
     jmp  .done
 .shifted:
     mov  al, [pm_scancode_shift + ebx]
+    jmp  .done
+
+.cyrillic:
+    cmp  byte [pm_shift], 0
+    jne  .cyr_shifted
+    mov  al, [pm_scancode_cyrillic + ebx]
+    jmp  .done
+.cyr_shifted:
+    mov  al, [pm_scancode_cyrillic_shift + ebx]
 
 .done:
     pop  ebx
     ret
+
+.toggle_layout:
+    xor  byte [pm_layout], 1
+    jmp  .no_key
 
 .shift_on:
     mov  byte [pm_shift], 1

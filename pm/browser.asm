@@ -75,6 +75,10 @@ browser_init:
     mov  edi, browser_status
     mov  ecx, 16
     rep  stosd
+    ; clear title buffer
+    mov  edi, browser_title_buf
+    mov  ecx, 16
+    rep  stosd
 
     ; initial URL
     mov  esi, browser_s_default_url
@@ -171,20 +175,40 @@ browser_draw:
     call fb_draw_string
     popa
 
+    ; ----- 3b. Home button [H] -----
+    pusha
+    add  eax, 4 + BR_BTN_W + 3 + BR_BTN_W + 3
+    add  ebx, WM_TITLE_H + 4
+    mov  ecx, BR_BTN_W
+    mov  edx, 20
+    mov  esi, BR_C_BTNBG
+    call fb_fill_rect
+    ; label
+    mov  ebx, eax
+    add  ebx, 10
+    mov  edi, [br_win]
+    mov  ecx, [edi+4]
+    add  ecx, WM_TITLE_H + 8
+    mov  esi, browser_s_home
+    mov  dl, BR_C_BTNTX
+    mov  dh, BR_C_BTNBG
+    call fb_draw_string
+    popa
+
     ; ----- 4. URL bar -----
     pusha
     mov  edi, [br_win]
-    ; x = wx + 4 + BTN_W + 3 + BTN_W + 3
+    ; x = wx + 4 + BTN_W + 3 + BTN_W + 3 + BTN_W + 3
     mov  eax, [edi+0]
-    add  eax, 4 + BR_BTN_W + 3 + BR_BTN_W + 3
+    add  eax, 4 + BR_BTN_W + 3 + BR_BTN_W + 3 + BR_BTN_W + 3
     mov  [br_url_x], eax
     ; y = wy + TITLE_H + 4
     mov  ebx, [edi+4]
     add  ebx, WM_TITLE_H + 4
     mov  [br_url_y], ebx
-    ; width = ww - (left margin + buttons + Go button + margins)
+    ; width = ww - (left margin + 3 buttons + Go button + margins)
     mov  ecx, [edi+8]
-    sub  ecx, 4 + BR_BTN_W + 3 + BR_BTN_W + 3 + 3 + 42 + 4  ; total margins
+    sub  ecx, 4 + (BR_BTN_W + 3) * 3 + 3 + 42 + 4  ; total margins
     mov  [br_url_w], ecx
     mov  edx, 20         ; height
     ; border
@@ -331,6 +355,43 @@ browser_draw:
     call fb_draw_string
     popa
 
+    ; ----- 9. Progress bar (inside status bar) -----
+    pusha
+    mov  eax, [browser_rx_total]
+    test eax, eax
+    jz   .no_progress
+    mov  edi, [br_win]
+    mov  eax, [edi+0]
+    add  eax, [edi+8]
+    sub  eax, 104       ; 100px bar + 4px margin
+    mov  ebx, [edi+4]
+    add  ebx, [edi+12]
+    sub  ebx, BR_STATUSBAR_H - 4
+    mov  ecx, 100       ; total width
+    mov  edx, BR_STATUSBAR_H - 8
+    mov  esi, 0x08      ; dark grey background for bar
+    call fb_fill_rect
+    
+    ; fill based on rx_total (modulo 100 for indeterminate-like effect if no content-length)
+    ; better: just fill based on (rx / 1024) % 100
+    mov  eax, [browser_rx_total]
+    shr  eax, 10        ; KB
+    xor  edx, edx
+    mov  ecx, 100
+    div  ecx
+    mov  ecx, edx       ; remainder (0..99)
+    test ecx, ecx
+    jz   .no_progress
+    
+    mov  edi, [br_win]
+    mov  eax, [edi+0]
+    add  eax, [edi+8]
+    sub  eax, 104
+    mov  esi, 0x0A      ; light green fill
+    call fb_fill_rect
+.no_progress:
+    popa
+
     popa
     ret
 
@@ -383,6 +444,28 @@ browser_draw_content:
     cmp  al, '<'
     je   .start_tag
 
+    ; handle <title> accumulation
+    cmp  byte [br_html_title], 1
+    jne  .not_in_title
+    ; find end of title string
+    push edi
+    mov  edi, browser_title_buf
+    xor  ecx, ecx
+.find_t_end:
+    cmp  byte [edi+ecx], 0
+    je   .t_found
+    inc  ecx
+    cmp  ecx, 63
+    jl   .find_t_end
+    jmp  .t_done
+.t_found:
+    mov  [edi+ecx], al
+    mov  byte [edi+ecx+1], 0
+.t_done:
+    pop  edi
+    jmp  .main_loop
+
+.not_in_title:
     ; Skip content if inside head/script/style
     cmp  byte [br_html_skip], 1
     je   .main_loop
@@ -601,8 +684,19 @@ br_dispatch_tag:
     mov  esi, br_s_style
     mov  edi, br_tag_buf+1
     call br_tag_match
-    jnz  .close_ck_p
+    jnz  .close_ck_title
     mov  byte [br_html_skip], 0
+    jmp  .tag_done
+.close_ck_title:
+    mov  esi, br_s_title_tag
+    mov  edi, br_tag_buf+1
+    call br_tag_match
+    jnz  .close_ck_p
+    mov  byte [br_html_title], 0
+    ; update window title
+    mov  edi, [br_win]
+    mov  dword [edi+20], browser_title_buf
+    call wm_draw_all
     jmp  .tag_done
 .close_ck_p:
     mov  al, [br_tag_buf+1]
@@ -758,8 +852,24 @@ br_dispatch_tag:
     mov  esi, br_s_style
     mov  edi, br_tag_buf
     call br_tag_match
-    jnz  .tag_done
+    jnz  .not_title_tag
     mov  byte [br_html_skip], 1
+    jmp  .tag_done
+.not_title_tag:
+    mov  esi, br_s_title_tag
+    mov  edi, br_tag_buf
+    call br_tag_match
+    jnz  .tag_done
+    mov  byte [br_html_title], 1
+    ; clear title buffer when opening new title
+    push edi
+    push ecx
+    mov  edi, browser_title_buf
+    mov  ecx, 16
+    xor  eax, eax
+    rep  stosd
+    pop  ecx
+    pop  edi
 
 .tag_done:
     pop  ecx
@@ -957,6 +1067,7 @@ br_html_bold:        db 0
 br_html_link:        db 0
 br_html_pre:         db 0
 br_html_skip:        db 0
+br_html_title:       db 0
 br_html_li_bullet:   db 0
 br_need_nl:          db 0
 
@@ -967,6 +1078,7 @@ br_s_li:       db 'li', 0
 br_s_head:     db 'head', 0
 br_s_script:   db 'script', 0
 br_s_style:    db 'style', 0
+br_s_title_tag: db 'title', 0
 
 ; ===========================================================================
 ; browser_tick - Handle keyboard input for focused browser
@@ -1103,13 +1215,33 @@ browser_click:
     cmp  ecx, 4 + BR_BTN_W + 3
     jl   .check_other
     cmp  ecx, 4 + BR_BTN_W + 3 + BR_BTN_W
-    jge  .check_go
+    jge  .check_home
     cmp  edx, WM_TITLE_H + 4
     jl   .check_other
     cmp  edx, WM_TITLE_H + 24
     jg   .check_other
     call browser_fetch
     call wm_draw_all
+    jmp  .done
+
+.check_home:
+    cmp  ecx, 4 + (BR_BTN_W + 3) * 2
+    jl   .check_other
+    cmp  ecx, 4 + (BR_BTN_W + 3) * 2 + BR_BTN_W
+    jge  .check_go
+    cmp  edx, WM_TITLE_H + 4
+    jl   .check_other
+    cmp  edx, WM_TITLE_H + 24
+    jg   .check_other
+    ; navigate to home
+    mov  esi, browser_s_default_url
+    mov  edi, browser_url
+.copy_home:
+    lodsb
+    stosb
+    test al, al
+    jnz  .copy_home
+    call browser_do_navigate
     jmp  .done
 
 .check_go:
@@ -1231,6 +1363,7 @@ browser_fetch:
     
     mov  dword [dns_poll_ctr], 2000000
 .dns_poll:
+    call pm_poll_events      ; Keep UI responsive during DNS poll
     call eth_recv
     jc   .dns_empty
     cmp  dx, ETHERTYPE_ARP
@@ -1350,6 +1483,7 @@ browser_fetch:
     pop  edi
 
 .recv_loop:
+    call pm_poll_events      ; Keep UI responsive during download
     cmp  byte [tcp_state], TCP_STATE_ESTABLISHED
     je   .do_recv
     cmp  byte [tcp_state], TCP_STATE_CLOSE_WAIT
@@ -1567,6 +1701,7 @@ browser_tmp:        times 256 db 0
 browser_host_buf:   times 128 db 0
 browser_content:    times 16384 db 0
 browser_status:     times 64 db 0
+browser_title_buf:  times 64 db 0
 browser_scroll_y:   dd 0
 browser_rx_total:   dd 0
 
@@ -1574,6 +1709,7 @@ browser_rx_total:   dd 0
 browser_s_go:           db 'Go', 0
 browser_s_back:         db '<', 0
 browser_s_reload:       db 'R', 0
+browser_s_home:         db 'H', 0
 browser_s_default_url:  db 'example.com 80 /', 0
 browser_s_hdr_host_pre: db 'Host: ', 0
 browser_s_crlf:         db 13, 10, 0

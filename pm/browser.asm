@@ -1,5 +1,5 @@
 ; ===========================================================================
-; pm/browser.asm  -  NatureOS Simple Web Browser
+; pm/browser.asm  -  NatureOS Simple Web Browser (with HTML rendering)
 ; ===========================================================================
 
 [BITS 32]
@@ -111,7 +111,7 @@ browser_draw:
     mov  esi, 0x0F      ; white background for content
     call fb_fill_rect
     
-    ; Draw current content (multi-line)
+    ; Draw current content (with HTML rendering)
     mov  eax, [edi+0]
     add  eax, 9             ; content x
     mov  ebx, [edi+4]
@@ -128,87 +128,756 @@ browser_draw:
     popa
     ret
 
-; - browser_draw_content -
-; In: ESI=content, EAX=x0, EBX=y0, ECX=w, EDX=h
+; ===========================================================================
+; HTML-aware content renderer
+; ===========================================================================
+; In: ESI=content (null-terminated), EAX=x0, EBX=y0, ECX=w, EDX=h
+; Uses state variables: br_x0, br_y0, br_w, br_h, br_cx, br_cy,
+;   br_scale, br_bold, br_skip, br_line_h, br_done_flag, br_closing,
+;   br_tag_buf, br_char_buf, br_save_esi, br_match_len
 browser_draw_content:
     pusha
     mov  [br_x0], eax
     mov  [br_y0], ebx
     mov  [br_w],  ecx
     mov  [br_h],  edx
-    
+
     mov  [br_cx], eax
     mov  [br_cy], ebx
-    
+    mov  dword [br_scale], 1
+    mov  dword [br_bold], 0
+    mov  dword [br_skip], 0
+    mov  dword [br_line_h], 8
+    mov  dword [br_done_flag], 0
+
 .loop:
+    cmp  dword [br_done_flag], 0
+    jne  .done
+
     movzx eax, byte [esi]
-    inc  esi
     test al, al
     jz   .done
-    
-    cmp  al, 13             ; CR
-    je   .cr
-    cmp  al, 10             ; LF
-    je   .lf
-    
-    ; check wrap
-    mov  edx, [br_cx]
-    sub  edx, [br_x0]
-    add  edx, 8
-    cmp  edx, [br_w]
-    ja   .wrap
-    
-    ; draw char
-    mov  ebx, [br_cx]
-    mov  ecx, [br_cy]
-    mov  dl, 0x00           ; black
-    mov  dh, 0x0F           ; white
-    call fb_draw_char
-    
-    add  dword [br_cx], 8
+
+    cmp  al, '<'
+    je   .tag
+    cmp  al, '&'
+    je   .entity
+
+    ; CR - ignore
+    cmp  al, 13
+    je   .skip_inc
+
+    ; LF - newline
+    cmp  al, 10
+    je   .newline_inc
+
+    ; if skipping (inside script/style), skip char
+    cmp  dword [br_skip], 0
+    jg   .skip_inc
+
+    ; render printable character
+    mov  [br_char_buf], al
+    call browser_render_char
+    inc  esi
     jmp  .loop
 
-.cr:
-    mov  eax, [br_x0]
-    mov  [br_cx], eax
-    jmp  .loop
-    
-.lf:
-    mov  eax, [br_x0]
-    mov  [br_cx], eax
-    add  dword [br_cy], 8
-    ; check bottom clip
-    mov  eax, [br_cy]
-    sub  eax, [br_y0]
-    add  eax, 8
-    cmp  eax, [br_h]
-    ja   .done
+.tag:
+    ; ESI points to '<'. browser_parse_tag will parse from ESI+1 and update ESI.
+    call browser_parse_tag
+    ; ESI is now updated (saved/restored via br_save_esi since pusha/popa used)
+    mov  esi, [br_save_esi]
     jmp  .loop
 
-.wrap:
-    mov  eax, [br_x0]
-    mov  [br_cx], eax
-    add  dword [br_cy], 8
-    ; check bottom clip
-    mov  eax, [br_cy]
-    sub  eax, [br_y0]
-    add  eax, 8
-    cmp  eax, [br_h]
-    ja   .done
-    dec  esi                ; re-process current char
+.entity:
+    ; ESI points to '&'. browser_decode_entity will handle it.
+    call browser_decode_entity
+    ; ESI is updated via br_save_esi, decoded char in br_char_buf
+    mov  esi, [br_save_esi]
+    cmp  dword [br_skip], 0
+    jg   .loop
+    cmp  byte [br_char_buf], 0
+    je   .loop
+    call browser_render_char
+    jmp  .loop
+
+.newline_inc:
+    inc  esi
+    call browser_newline
+    jmp  .loop
+
+.skip_inc:
+    inc  esi
     jmp  .loop
 
 .done:
     popa
     ret
 
-; helper vars
+; - browser_render_char -
+; Render character from br_char_buf at current cursor position.
+; Uses current br_scale and br_bold for rendering.
+browser_render_char:
+    pusha
+
+    ; compute char width = 8 * scale
+    mov  eax, [br_scale]
+    shl  eax, 3
+    mov  [br_cw], eax
+
+    ; check wrap
+    mov  edx, [br_cx]
+    sub  edx, [br_x0]
+    add  edx, eax            ; edx = (cx - x0) + char_width
+    cmp  edx, [br_w]
+    jbe  .no_wrap
+    ; wrap to next line
+    call browser_newline
+.no_wrap:
+
+    ; set fcs_scale for scaled rendering
+    mov  eax, [br_scale]
+    mov  [fcs_scale], eax
+
+    ; compute foreground color
+    mov  dl, 0x00            ; default: black
+    cmp  dword [br_bold], 0
+    je   .fg_set
+    mov  dl, 0x08            ; bold: dark grey
+.fg_set:
+    mov  dh, 0x0F            ; white background
+
+    ; draw char scaled
+    mov  al, [br_char_buf]
+    mov  ebx, [br_cx]
+    mov  ecx, [br_cy]
+    call fb_draw_char_scaled
+
+    ; advance cursor
+    mov  eax, [br_cw]
+    add  [br_cx], eax
+
+    popa
+    ret
+
+; - browser_newline -
+; Reset CX to x0, advance CY by current line height.
+; Sets br_done_flag if past bottom.
+browser_newline:
+    push eax
+    mov  eax, [br_x0]
+    mov  [br_cx], eax
+    mov  eax, [br_line_h]
+    add  [br_cy], eax
+    ; check bottom clip
+    mov  eax, [br_cy]
+    sub  eax, [br_y0]
+    add  eax, [br_line_h]
+    cmp  eax, [br_h]
+    jbe  .nl_ok
+    mov  dword [br_done_flag], 1
+.nl_ok:
+    pop  eax
+    ret
+
+; - browser_draw_hr -
+; Draw horizontal rule at current position
+browser_draw_hr:
+    pusha
+    ; reset to start of line
+    mov  eax, [br_x0]
+    mov  [br_cx], eax
+    ; draw line: fb_fill_rect(x0, cy, w, 2, dark grey)
+    mov  eax, [br_x0]
+    mov  ebx, [br_cy]
+    mov  ecx, [br_w]
+    mov  edx, 2
+    mov  esi, 0x08           ; dark grey
+    call fb_fill_rect
+    ; advance cy past line + spacing
+    add  dword [br_cy], 6
+    mov  eax, [br_x0]
+    mov  [br_cx], eax
+    ; check bottom clip
+    mov  eax, [br_cy]
+    sub  eax, [br_y0]
+    add  eax, 8
+    cmp  eax, [br_h]
+    ja   .hr_clip
+.hr_clip:
+    popa
+    ret
+
+; ===========================================================================
+; browser_parse_tag
+; ===========================================================================
+; Called when '<' is encountered in main loop. ESI points to the '<'.
+; Parses the tag, updates rendering state, and sets br_save_esi to
+; point past the closing '>'.
+; Uses pusha/popa so we must save ESI externally.
+browser_parse_tag:
+    pusha
+
+    ; ESI points to '<', advance past it
+    inc  esi
+
+    ; check for closing tag '</'
+    mov  dword [br_closing], 0
+    cmp  byte [esi], '/'
+    jne  .not_closing
+    mov  dword [br_closing], 1
+    inc  esi
+
+.not_closing:
+    ; read tag name into br_tag_buf (max 15 chars, lowercased)
+    mov  edi, br_tag_buf
+    xor  ecx, ecx
+.read_tag:
+    mov  al, [esi]
+    ; stop at space, >, /, or null
+    cmp  al, ' '
+    je   .tag_name_done
+    cmp  al, '>'
+    je   .tag_name_done
+    cmp  al, '/'
+    je   .tag_name_done
+    test al, al
+    jz   .tag_name_done
+    ; lowercase: if 'A'-'Z', OR with 0x20
+    cmp  al, 'A'
+    jb   .no_lower
+    cmp  al, 'Z'
+    ja   .no_lower
+    or   al, 0x20
+.no_lower:
+    stosb
+    inc  esi
+    inc  ecx
+    cmp  ecx, 15
+    jb   .read_tag
+.tag_name_done:
+    ; null-terminate tag name
+    xor  al, al
+    stosb
+
+    ; skip rest of tag until '>' or null
+.skip_tag:
+    mov  al, [esi]
+    test al, al
+    jz   .tag_end
+    cmp  al, '>'
+    je   .found_gt
+    inc  esi
+    jmp  .skip_tag
+.found_gt:
+    inc  esi                ; skip past '>'
+
+.tag_end:
+    ; save ESI so caller can pick it up
+    mov  [br_save_esi], esi
+
+    ; if inside script/style skip, only check for </script> or </style>
+    cmp  dword [br_skip], 0
+    jg   .check_skip_end
+
+    ; apply tag effects
+    call browser_apply_tag
+    jmp  .parse_done
+
+.check_skip_end:
+    ; check if this closing tag ends the skip
+    cmp  dword [br_closing], 1
+    jne  .parse_done        ; not a closing tag, stay in skip
+    ; check for </script>
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_script
+    call br_str_eq
+    test al, al
+    jnz  .end_skip
+    ; check for </style>
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_style
+    call br_str_eq
+    test al, al
+    jnz  .end_skip
+    jmp  .parse_done
+.end_skip:
+    dec  dword [br_skip]
+    jmp  .parse_done
+
+.parse_done:
+    popa
+    ret
+
+; ===========================================================================
+; browser_apply_tag
+; ===========================================================================
+; Apply rendering state changes based on tag in br_tag_buf.
+; Uses br_closing to determine opening vs closing tag.
+browser_apply_tag:
+    pusha
+
+    ; if closing tag
+    cmp  dword [br_closing], 1
+    je   .closing_tag
+
+    ; --- Opening tags ---
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h1
+    call br_str_eq
+    test al, al
+    jnz  .open_h1
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h2
+    call br_str_eq
+    test al, al
+    jnz  .open_h2
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h3
+    call br_str_eq
+    test al, al
+    jnz  .open_h3
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h4
+    call br_str_eq
+    test al, al
+    jnz  .open_h4
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h5
+    call br_str_eq
+    test al, al
+    jnz  .open_h5
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h6
+    call br_str_eq
+    test al, al
+    jnz  .open_h6
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_p
+    call br_str_eq
+    test al, al
+    jnz  .open_p
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_br
+    call br_str_eq
+    test al, al
+    jnz  .open_br
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_hr
+    call br_str_eq
+    test al, al
+    jnz  .open_hr
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_b
+    call br_str_eq
+    test al, al
+    jnz  .open_b
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_ul
+    call br_str_eq
+    test al, al
+    jnz  .open_ul
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_li
+    call br_str_eq
+    test al, al
+    jnz  .open_li
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_script
+    call br_str_eq
+    test al, al
+    jnz  .open_script
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_style
+    call br_str_eq
+    test al, al
+    jnz  .open_style
+    ; unknown tag - ignore
+    jmp  .apply_done
+
+.open_h1:
+    call browser_newline
+    call browser_newline
+    mov  dword [br_scale], 3
+    mov  dword [br_bold], 1
+    mov  dword [br_line_h], 24
+    jmp  .apply_done
+
+.open_h2:
+    call browser_newline
+    call browser_newline
+    mov  dword [br_scale], 2
+    mov  dword [br_bold], 1
+    mov  dword [br_line_h], 16
+    jmp  .apply_done
+
+.open_h3:
+    call browser_newline
+    call browser_newline
+    mov  dword [br_scale], 1
+    mov  dword [br_bold], 1
+    mov  dword [br_line_h], 8
+    jmp  .apply_done
+
+.open_h4:
+    call browser_newline
+    call browser_newline
+    mov  dword [br_scale], 1
+    mov  dword [br_bold], 1
+    mov  dword [br_line_h], 8
+    jmp  .apply_done
+
+.open_h5:
+    call browser_newline
+    call browser_newline
+    mov  dword [br_scale], 1
+    mov  dword [br_bold], 1
+    mov  dword [br_line_h], 8
+    jmp  .apply_done
+
+.open_h6:
+    call browser_newline
+    call browser_newline
+    mov  dword [br_scale], 1
+    mov  dword [br_bold], 1
+    mov  dword [br_line_h], 8
+    jmp  .apply_done
+
+.open_p:
+    call browser_newline
+    call browser_newline
+    jmp  .apply_done
+
+.open_br:
+    call browser_newline
+    jmp  .apply_done
+
+.open_hr:
+    call browser_newline
+    call browser_draw_hr
+    jmp  .apply_done
+
+.open_b:
+    mov  dword [br_bold], 1
+    jmp  .apply_done
+
+.open_ul:
+    call browser_newline
+    jmp  .apply_done
+
+.open_li:
+    call browser_newline
+    ; emit bullet prefix "* "
+    cmp  dword [br_skip], 0
+    jg   .apply_done
+    mov  byte [br_char_buf], '*'
+    call browser_render_char
+    mov  byte [br_char_buf], ' '
+    call browser_render_char
+    jmp  .apply_done
+
+.open_script:
+    inc  dword [br_skip]
+    jmp  .apply_done
+
+.open_style:
+    inc  dword [br_skip]
+    jmp  .apply_done
+
+    ; --- Closing tags ---
+.closing_tag:
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h1
+    call br_str_eq
+    test al, al
+    jnz  .close_h
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h2
+    call br_str_eq
+    test al, al
+    jnz  .close_h
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h3
+    call br_str_eq
+    test al, al
+    jnz  .close_h
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h4
+    call br_str_eq
+    test al, al
+    jnz  .close_h
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h5
+    call br_str_eq
+    test al, al
+    jnz  .close_h
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_h6
+    call br_str_eq
+    test al, al
+    jnz  .close_h
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_p
+    call br_str_eq
+    test al, al
+    jnz  .close_p
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_b
+    call br_str_eq
+    test al, al
+    jnz  .close_b
+    mov  esi, br_tag_buf
+    mov  edi, browser_s_ul
+    call br_str_eq
+    test al, al
+    jnz  .close_ul
+    ; /li - nothing special
+    ; /script or /style handled in browser_parse_tag
+    jmp  .apply_done
+
+.close_h:
+    call browser_newline
+    mov  dword [br_scale], 1
+    mov  dword [br_bold], 0
+    mov  dword [br_line_h], 8
+    jmp  .apply_done
+
+.close_p:
+    call browser_newline
+    jmp  .apply_done
+
+.close_b:
+    mov  dword [br_bold], 0
+    jmp  .apply_done
+
+.close_ul:
+    call browser_newline
+    jmp  .apply_done
+
+.apply_done:
+    popa
+    ret
+
+; ===========================================================================
+; browser_decode_entity
+; ===========================================================================
+; Called when '&' is encountered in main loop. ESI points to the '&'.
+; Tries to match known HTML entities starting at ESI+1.
+; On match: sets br_char_buf to decoded char, br_save_esi = ESI past entity.
+; On no match: sets br_char_buf to '&', br_save_esi = ESI+1 (past the &).
+browser_decode_entity:
+    pusha
+
+    ; ESI points to '&'. ESI+1 is start of entity name.
+    ; Save base pointer for match length calculation
+    mov  [br_save_esi], esi
+
+    ; try &amp;
+    lea  esi, [esi + 1]     ; ESI now points past '&'
+    mov  edi, browser_s_amp
+    call br_match_entity
+    test al, al
+    jz   .not_amp
+    ; match_len bytes matched past the '&'. New ESI = base + 1 + match_len
+    mov  eax, [br_save_esi]
+    add  eax, [br_match_len]
+    inc  eax                 ; +1 for the '&'
+    mov  [br_save_esi], eax
+    mov  byte [br_char_buf], '&'
+    jmp  .ent_done
+
+.not_amp:
+    mov  esi, [br_save_esi]
+    lea  esi, [esi + 1]
+    mov  edi, browser_s_lt
+    call br_match_entity
+    test al, al
+    jz   .not_lt
+    mov  eax, [br_save_esi]
+    add  eax, [br_match_len]
+    inc  eax
+    mov  [br_save_esi], eax
+    mov  byte [br_char_buf], '<'
+    jmp  .ent_done
+
+.not_lt:
+    mov  esi, [br_save_esi]
+    lea  esi, [esi + 1]
+    mov  edi, browser_s_gt
+    call br_match_entity
+    test al, al
+    jz   .not_gt
+    mov  eax, [br_save_esi]
+    add  eax, [br_match_len]
+    inc  eax
+    mov  [br_save_esi], eax
+    mov  byte [br_char_buf], '>'
+    jmp  .ent_done
+
+.not_gt:
+    mov  esi, [br_save_esi]
+    lea  esi, [esi + 1]
+    mov  edi, browser_s_nbsp
+    call br_match_entity
+    test al, al
+    jz   .not_nbsp
+    mov  eax, [br_save_esi]
+    add  eax, [br_match_len]
+    inc  eax
+    mov  [br_save_esi], eax
+    mov  byte [br_char_buf], ' '
+    jmp  .ent_done
+
+.not_nbsp:
+    mov  esi, [br_save_esi]
+    lea  esi, [esi + 1]
+    mov  edi, browser_s_quot
+    call br_match_entity
+    test al, al
+    jz   .not_quot
+    mov  eax, [br_save_esi]
+    add  eax, [br_match_len]
+    inc  eax
+    mov  [br_save_esi], eax
+    mov  byte [br_char_buf], '"'
+    jmp  .ent_done
+
+.not_quot:
+    ; no match - treat '&' as literal, advance past it
+    mov  eax, [br_save_esi]
+    inc  eax                ; skip the '&'
+    mov  [br_save_esi], eax
+    mov  byte [br_char_buf], '&'
+
+.ent_done:
+    popa
+    ret
+
+; ===========================================================================
+; Utility: string equality comparison (non-local label, safe to call from
+; both browser_parse_tag and browser_apply_tag)
+; ===========================================================================
+; ESI=str1, EDI=str2. Returns AL=1 if equal, AL=0 if not.
+br_str_eq:
+    push ebx
+.se_loop:
+    mov  al, [esi]
+    mov  bl, [edi]
+    cmp  al, bl
+    jne  .se_ne
+    test al, al
+    jz   .se_eq
+    inc  esi
+    inc  edi
+    jmp  .se_loop
+.se_eq:
+    mov  al, 1
+    pop  ebx
+    ret
+.se_ne:
+    xor  al, al
+    pop  ebx
+    ret
+
+; ===========================================================================
+; Utility: case-insensitive entity match
+; ===========================================================================
+; ESI points to content text (after '&'), EDI points to pattern string like "amp;"
+; (the part after '&', including the trailing ';').
+; Returns AL=1 if match, AL=0 if not. Sets br_match_len = number of matched bytes.
+; Does NOT modify ESI or EDI.
+br_match_entity:
+    push ebx
+    push ecx
+    push edx
+    push esi
+    push edi
+    xor  ecx, ecx          ; match length counter
+.me_loop:
+    mov  bl, [edi]
+    test bl, bl
+    jz   .me_match         ; reached end of pattern - full match!
+    mov  dl, [esi + ecx]
+    ; case-insensitive: lowercase both
+    mov  al, dl
+    cmp  al, 'A'
+    jb   .me_no_lower1
+    cmp  al, 'Z'
+    ja   .me_no_lower1
+    or   al, 0x20
+.me_no_lower1:
+    mov  bh, bl
+    cmp  bh, 'A'
+    jb   .me_no_lower2
+    cmp  bh, 'Z'
+    ja   .me_no_lower2
+    or   bh, 0x20
+.me_no_lower2:
+    cmp  al, bh
+    jne  .me_nomatch
+    inc  ecx
+    inc  edi
+    jmp  .me_loop
+.me_match:
+    mov  [br_match_len], ecx
+    mov  al, 1
+    pop  edi
+    pop  esi
+    pop  edx
+    pop  ecx
+    pop  ebx
+    ret
+.me_nomatch:
+    xor  al, al
+    pop  edi
+    pop  esi
+    pop  edx
+    pop  ecx
+    pop  ebx
+    ret
+
+; ===========================================================================
+; Helper vars for browser content rendering
+; ===========================================================================
 br_x0: dd 0
 br_y0: dd 0
 br_w:  dd 0
 br_h:  dd 0
 br_cx: dd 0
 br_cy: dd 0
+br_scale: dd 1
+br_bold:  dd 0
+br_fg:    dd 0
+br_skip:  dd 0
+br_line_h: dd 8
+br_cw:    dd 8
+br_done_flag: dd 0
+br_closing: dd 0
+br_save_esi: dd 0
+br_match_len: dd 0
+br_tag_buf: times 16 db 0
+br_char_buf: db 0
+
+; tag name strings for comparison
+browser_s_h1: db 'h1', 0
+browser_s_h2: db 'h2', 0
+browser_s_h3: db 'h3', 0
+browser_s_h4: db 'h4', 0
+browser_s_h5: db 'h5', 0
+browser_s_h6: db 'h6', 0
+browser_s_p: db 'p', 0
+browser_s_br: db 'br', 0
+browser_s_hr: db 'hr', 0
+browser_s_b: db 'b', 0
+browser_s_ul: db 'ul', 0
+browser_s_li: db 'li', 0
+browser_s_script: db 'script', 0
+browser_s_style: db 'style', 0
+; entity strings (the part after '&', including the ';')
+browser_s_amp: db 'amp;', 0
+browser_s_lt: db 'lt;', 0
+browser_s_gt: db 'gt;', 0
+browser_s_nbsp: db 'nbsp;', 0
+browser_s_quot: db 'quot;', 0
 
 ; - browser_tick -
 browser_tick:

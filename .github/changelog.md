@@ -12,7 +12,7 @@
 
 
 
-\## Planning to implement
+## Planning to implement
 - Sound support
 - An actual browser
 - VBE -> VESA

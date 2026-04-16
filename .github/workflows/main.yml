@@ -45,8 +45,6 @@ jobs:
           name: ${{ github.ref_type == 'tag' && github.ref_name || 'First release' }}
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
           body: |
-            # Release ${{ github.ref_name }}
-
             ${{ steps.changelog.outputs.body }}
 
             ---

@@ -491,7 +491,7 @@ pm_cmd_savescr:
     dec  ecx
     mov  eax, 640
     imul eax, ecx
-    mov  esi, 0x500000    ; read directly from GFX_SHADOW
+    mov  esi, 0x600000    ; read from SCR_CAPTURE (snapshot taken by PrtSc)
     add  esi, eax
     push ecx
     mov  ecx, 160

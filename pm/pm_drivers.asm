@@ -92,7 +92,7 @@ pm_drv_init:
     mov  byte [pm_drv_status + 3], 1
 
     ; - Driver 4: PCI bus -
-    call pci_init
+    ; (Initialized earlier in pm_entry to allow MMIO paging)
     mov  byte [pm_drv_status + 4], 1
 
     ; - Driver 5: e1000 NIC -

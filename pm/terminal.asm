@@ -308,6 +308,21 @@ term_putchar:
 ; term_putchar_col  AL=char  DL=colour
 term_putchar_col:
     pusha
+
+    ; --- serial output ---
+    push edx
+    push eax
+.wait_tx_pm:
+    mov  dx, 0x3FD
+    in   al, dx
+    test al, 0x20
+    jz   .wait_tx_pm
+    mov  dx, 0x3F8
+    pop  eax
+    out  dx, al
+    pop  edx
+    ; ---------------------
+
     cmp  al, 10
     je   .nl
     cmp  al, 13

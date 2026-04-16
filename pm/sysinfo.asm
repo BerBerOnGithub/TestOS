@@ -203,53 +203,59 @@ pm_cmd_sysinfo:
     call pm_newline
 
 .mem:
-    ; --- Memory Info ---
+    ; --- Memory Info (E820) ---
     mov  esi, sysinfo_mem_hdr
     mov  bl, 0x0E
     call pm_puts
 
-    ; Get Conventional Memory (INT 12h)
-    xor  eax, eax
-    mov  edi, RM_REGS_ADDR
-    mov  ecx, 8
-    rep  stosd
-    
-    mov  al, 0x12
-    call pm_bios_call
-    movzx eax, word [RM_REGS_ADDR]
-    
-    mov  esi, sysinfo_mem_conv
+    mov  esi, sysinfo_mem_total
     mov  bl, 0x07
     call pm_puts
-    call pm_print_uint
-    mov  esi, sysinfo_kb
-    call pm_puts
-    call pm_newline
 
-    ; Get Extended Memory (INT 15h, AX=E801h)
-    xor  eax, eax
-    mov  edi, RM_REGS_ADDR
-    mov  ecx, 8
-    rep  stosd
-    mov  dword [RM_REGS_ADDR], 0xE801 ; EAX = 0xE801
+    ; Read CMOS 0x34/0x35: 64KB blocks above 16MB
+    mov  al, 0x34
+    out  0x70, al
+    in   al, 0x71
+    movzx ecx, al
+    mov  al, 0x35
+    out  0x70, al
+    in   al, 0x71
+    movzx eax, al
+    shl  eax, 8
+    or   eax, ecx               ; EAX = blocks above 16MB
     
-    mov  al, 0x15
-    call pm_bios_call
+    test eax, eax
+    jnz  .cmos_high
     
-    ; AX contains KB between 1MB and 16MB
-    ; BX contains 64KB blocks above 16MB
-    movzx eax, word [RM_REGS_ADDR]     ; AX
-    movzx ebx, word [RM_REGS_ADDR + 4] ; BX
+    ; Fallback: CMOS 0x30/0x31: KB above 1MB (max 64MB)
+    mov  al, 0x30
+    out  0x70, al
+    in   al, 0x71
+    movzx ecx, al
+    mov  al, 0x31
+    out  0x70, al
+    in   al, 0x71
+    movzx eax, al
+    shl  eax, 8
+    or   eax, ecx               ; EAX = KB
+    shr  eax, 10                ; KB -> MB
+    inc  eax                    ; add 1MB base
+    jmp  .cmos_done
+
+.cmos_high:
+    shr  eax, 4                 ; blocks -> MB ( / 16 )
+    add  eax, 16                ; add 16MB base
     
-    ; Total extended memory = AX + BX * 64
-    shl  ebx, 6
-    add  eax, ebx
+.cmos_done:
+    mov  [si_total_mb], eax
     
-    mov  esi, sysinfo_mem_ext
+    mov  esi, sysinfo_mem_total
     mov  bl, 0x07
     call pm_puts
+    
+    mov  eax, [si_total_mb]
     call pm_print_uint
-    mov  esi, sysinfo_kb
+    mov  esi, sysinfo_mb
     call pm_puts
     call pm_newline
 
@@ -318,9 +324,9 @@ sysinfo_gpu_found:  db '  Found:   ', 0
 sysinfo_not_found:  db '  None found', 0
 
 sysinfo_mem_hdr:    db ' [Memory]', 13, 10, 0
-sysinfo_mem_conv:   db '  Conventional: ', 0
-sysinfo_mem_ext:    db '  Extended: ', 0
+sysinfo_mem_total:  db '  Total:   ', 0
 sysinfo_kb:         db ' KB', 0
+sysinfo_mb:         db ' MB', 0
 
 sysinfo_tsc_hdr:    db ' [TSC]', 13, 10, 0
 sysinfo_tsc_avail:  db '  Available', 13, 10, 0

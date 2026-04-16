@@ -15,8 +15,8 @@
 [ORG 0x7E00]
 
 KERNEL_OFFSET equ 1    ; flat-image-relative: kernel at base+1
-FS_OFFSET     equ 51   ; flat-image-relative: FS at base+51
-KERNEL_COUNT  equ 50
+FS_OFFSET     equ 201  ; flat-image-relative: FS at base+201
+KERNEL_COUNT  equ 200
 FS_COUNT      equ 400
 
 SCRATCH_SEG   equ 0x0600

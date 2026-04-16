@@ -1,0 +1,68 @@
+name: Build and Release ClaudeOS
+
+on:
+  push:
+    tags:
+      - "v*"           # Triggers on version tags like v1.0, v0.2.3, etc.
+  workflow_dispatch:   # Allows manual trigger from the GitHub Actions tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm xorriso python3
+
+      - name: Build ISO and data.img
+        run: make all
+
+      - name: Verify build artifacts exist
+        run: |
+          test -f claudeos.iso || (echo "ERROR: claudeos.iso not found" && exit 1)
+          test -f data.img     || (echo "ERROR: data.img not found"     && exit 1)
+          echo "claudeos.iso: $(du -h claudeos.iso | cut -f1)"
+          echo "data.img:     $(du -h data.img     | cut -f1)"
+
+      - name: Read changelog
+        id: changelog
+        run: |
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          cat .github/CHANGELOG.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_type == 'tag' && github.ref_name || 'First release' }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'latest' }}
+          body: |
+            # ClaudeOS ${{ github.ref_name }}
+
+            ${{ steps.changelog.outputs.body }}
+
+            ---
+
+            ## Downloads
+            `claudeos.iso` | Bootable ISO image
+            `data.img` | Data disk image
+
+            ## Running with QEMU
+            ```
+            qemu-system-x86_64 \
+              -cdrom claudeos.iso \
+              -drive format=raw,file=data.img,if=ide,index=2 \
+              -boot d -m 32M -display sdl -no-reboot \
+              -cpu qemu64 -nic user,model=e1000
+            ```
+          files: |
+            claudeos.iso
+            data.img
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

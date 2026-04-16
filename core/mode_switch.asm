@@ -42,6 +42,12 @@ pm_bios_call:
     mov  [pm_sp_save], esp
     sidt [pm_idtr_save]
 
+    ; 1a. Disable Paging FIRST (must be done before leaving 32-bit PM!)
+    mov  eax, cr0
+    and  eax, 0x7FFFFFFF   ; Clear PG (bit 31)
+    mov  cr0, eax
+    jmp  $+2
+
     ; 1. Transition to 16-bit Protected Mode
     jmp  0x18:.pm16
 
@@ -55,7 +61,7 @@ pm_bios_call:
 
     ; 2. Drop into Real Mode
     mov  eax, cr0
-    and  eax, ~1
+    and  eax, 0xFFFFFFFE   ; Clear PE (bit 0) ONLY. PG is already clear.
     mov  cr0, eax
 
     ; Far jump to flush prefetch and load RM CS.
@@ -110,14 +116,26 @@ pm_bios_call:
     mov  ds, ax
 
     ; 5. Self-modifying INT instruction - patch vector byte via CS:
-    push ax
+    push eax
     push ds
     xor  ax, ax
     mov  ds, ax
     mov  al, [RM_REGS_ADDR + 30]
     mov  [cs:.int_instr + 1], al
     pop  ds
-    pop  ax
+    pop  eax
+
+    ; FINAL LOAD: reload all registers from the structure
+    ; (DS and ES are already set, SI/DI/BP might be needed by BIOS)
+    mov  bp, si             ; BP points to RM_REGS_ADDR
+    mov  eax, [bp + 0]
+    mov  ebx, [bp + 4]
+    mov  ecx, [bp + 8]
+    mov  edx, [bp + 12]
+    mov  edi, [bp + 20]
+    push dword [bp + 16]    ; ESI
+    pop  esi
+    ; do not touch BP until after INT
 
 .int_instr:
     int  0x00
@@ -165,7 +183,7 @@ pm_bios_call:
     lidt [cs:pm_idtr_save]
 
     mov  eax, cr0
-    or   eax, 1
+    or   eax, 0x00000001   ; Set PE (bit 0) ONLY
     mov  cr0, eax
 
     jmp  0x08:.pm32
@@ -179,6 +197,14 @@ pm_bios_call:
     mov  gs, ax
     mov  ss, ax
     mov  esp, [pm_sp_save]
+
+    ; 8. Re-enable Paging now that we are safely back in 32-bit segments
+    mov  eax, 0x120000      ; PAGE_DIR moved to 0x120000 to avoid FS overlap
+    mov  cr3, eax           ; reload page directory
+    mov  eax, cr0
+    or   eax, 0x80000000   ; Set PG ONLY
+    mov  cr0, eax
+    jmp  $+2
 
     popa
     sti

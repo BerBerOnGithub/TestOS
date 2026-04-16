@@ -61,7 +61,18 @@ irq_init:
     ; - install error-code stubs for exceptions that push an error code -
 %macro set_err_gate 1
     mov  edi, idt_table + (%1 * 8)
-    mov  eax, irq_stub_err
+    mov  eax, stub_err_%1
+    mov  word  [edi],   ax
+    mov  word  [edi+2], 0x08
+    mov  byte  [edi+4], 0x00
+    mov  byte  [edi+5], 0x8E
+    shr  eax, 16
+    mov  word  [edi+6], ax
+%endmacro
+
+%macro set_exc_gate 1
+    mov  edi, idt_table + (%1 * 8)
+    mov  eax, stub_exc_%1
     mov  word  [edi],   ax
     mov  word  [edi+2], 0x08
     mov  byte  [edi+4], 0x00
@@ -77,6 +88,9 @@ irq_init:
     set_err_gate 0x0D   ; #GP general protection
     set_err_gate 0x0E   ; #PF page fault
     set_err_gate 0x11   ; #AC alignment check
+
+    set_exc_gate 0x00   ; #DE divide error
+    set_exc_gate 0x06   ; #UD invalid opcode
 
     ; - load IDTR -
     mov  word  [idt_desc],   256*8 - 1
@@ -109,6 +123,92 @@ irq_stub:
 irq_stub_err:
     add  esp, 4        ; discard error code
     hlt
+
+; - crash reporter strings -
+str_fatal_exc: db "FATAL EXCEPTION: ", 0
+str_hex:       db "0123456789ABCDEF"
+
+; EAX = vector, EBX = error code (if any)
+irq_fatal_dump:
+    push eax
+    push ebx
+    mov  esi, str_fatal_exc
+    call irq_serial_puts
+    pop  ebx
+    pop  eax
+
+    ; Print vector in hex (AL)
+    push eax
+    mov  al, [esp+0]
+    shr  al, 4
+    and  eax, 0xF
+    mov  al, [str_hex + eax]
+    call irq_serial_putc
+    mov  al, [esp+0]
+    and  eax, 0xF
+    mov  al, [str_hex + eax]
+    call irq_serial_putc
+    pop  eax
+
+    mov  al, 13
+    call irq_serial_putc
+    mov  al, 10
+    call irq_serial_putc
+    
+    cli
+    hlt
+
+irq_serial_puts:
+    push eax
+.loop:
+    mov  al, [esi]
+    test al, al
+    jz   .done
+    call irq_serial_putc
+    inc  esi
+    jmp  .loop
+.done:
+    pop  eax
+    ret
+
+irq_serial_putc:
+    push eax
+    push edx
+.wait:
+    mov  dx, 0x3FD
+    in   al, dx
+    test al, 0x20
+    jz   .wait
+    mov  dx, 0x3F8
+    pop  eax
+    out  dx, al
+    pop  edx
+    ret
+
+%macro make_stub_err 1
+stub_err_%1:
+    mov  eax, %1         ; vector
+    mov  ebx, [esp]      ; error code
+    jmp  irq_fatal_dump
+%endmacro
+
+%macro make_stub_exc 1
+stub_exc_%1:
+    mov  eax, %1         ; vector
+    xor  ebx, ebx        ; no error code
+    jmp  irq_fatal_dump
+%endmacro
+
+make_stub_err 0x08
+make_stub_err 0x0A
+make_stub_err 0x0B
+make_stub_err 0x0C
+make_stub_err 0x0D
+make_stub_err 0x0E
+make_stub_err 0x11
+
+make_stub_exc 0x00
+make_stub_exc 0x06
 
 ; - data -
 pit_ticks:   dd 0

@@ -67,7 +67,7 @@ REM   512-sector 1:   stage2.bin   (max 3 sectors = 1536 bytes)
 REM   512-sector 4:   kernel.bin   (2048-LBA 1)
 REM   512-sector 204: fs.bin       (2048-LBA 51)
 set KERNEL_SECTOR=4
-set FS_SECTOR=204
+set FS_SECTOR=804
 set FS_SECTORS=1600
 set /a FLAT_SECTORS=%FS_SECTOR%+%FS_SECTORS%
 set /a FLAT_BYTES=%FLAT_SECTORS%*512
@@ -125,6 +125,7 @@ qemu-system-x86_64 ^
   -nic user,model=e1000 ^
   -display sdl,window-close=on ^
   -name "ClaudeOS" ^
+  -serial stdio ^
   -no-reboot
 exit /b 0
 

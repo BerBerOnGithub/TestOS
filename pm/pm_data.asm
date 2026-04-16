@@ -22,8 +22,10 @@ pm_calc_n2:     dd 0
 pm_calc_op:     db 0
 pm_probe_rows:  dd 0
 pm_probe_cols:  dd 0
-gfx_dirty:  db 0
-scr_pending:  db 0
+gfx_dirty:   db 0
+scr_pending: db 0
+si_total_mb: dd 0
+si_tmp:      dq 0
 
 ; -
 ; PS/2 scan code +' ASCII tables

@@ -74,6 +74,20 @@ putc_color:
     push cx
     push dx
 
+    ; --- serial output ---
+    push dx
+    push ax
+.wait_tx_rm:
+    mov  dx, 0x3FD
+    in   al, dx
+    test al, 0x20
+    jz   .wait_tx_rm
+    mov  dx, 0x3F8
+    pop  ax
+    out  dx, al
+    pop  dx
+    ; ---------------------
+
     cmp  al, 13
     je   .do_cr
     cmp  al, 10

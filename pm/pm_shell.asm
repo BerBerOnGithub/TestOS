@@ -15,12 +15,38 @@ pm_entry:
     mov  gs, ax
     mov  ss, ax
     mov  esp, 0x9e000
+
+    mov  esi, dbg_msg_1
+    call dbg_serial_puts
+    call irq_init           ; remap PIC, install IDT IMMEDIATELY to catch early faults
+
+    mov  esi, dbg_msg_2
+    call dbg_serial_puts
+    call pci_init           ; Call BEFORE paging so we can map e1000 BAR0
+    call paging_init        ; immediately enable virtual memory
+
+    mov  esi, dbg_msg_3
+    call dbg_serial_puts
     call bios_disk_init     ; detect data drive via BIOS INT 13h
+
+    mov  esi, dbg_msg_4
+    call dbg_serial_puts
     call fsd_init           ; read ClaudeFS data directory into RAM
+
+    mov  esi, dbg_msg_5
+    call dbg_serial_puts
     call pm_drv_init        ; init NIC before interrupts are enabled
-    call irq_init           ; remap PIC, install IDT, enable IRQ0 at 100Hz
-    call scr_counter_init ; seed screenshot counter from existing files on disk
+
+    mov  esi, dbg_msg_6
+    call dbg_serial_puts
+    call scr_counter_init   ; seed screenshot counter from existing files on disk
+
+    mov  esi, dbg_msg_7
+    call dbg_serial_puts
     call gfx_init
+
+    mov  esi, dbg_msg_8
+    call dbg_serial_puts
 
 
     ; If VBE failed, skip the graphical WM entirely and use text-mode shell
@@ -592,6 +618,39 @@ pm_cmd_files:
     popa
     ret
 
+; ------------------------------------
+; DEBUG TRACE STRINGS AND UART HOOK
+; ------------------------------------
+dbg_msg_1: db '[DEBUG] Phase 1 - Before irq_init', 13, 10, 0
+dbg_msg_2: db '[DEBUG] Phase 2 - Before paging_init', 13, 10, 0
+dbg_msg_3: db '[DEBUG] Phase 3 - Before bios_disk_init', 13, 10, 0
+dbg_msg_4: db '[DEBUG] Phase 4 - Before fsd_init', 13, 10, 0
+dbg_msg_5: db '[DEBUG] Phase 5 - Before pm_drv_init', 13, 10, 0
+dbg_msg_6: db '[DEBUG] Phase 6 - Before scr_counter_init', 13, 10, 0
+dbg_msg_7: db '[DEBUG] Phase 7 - Before gfx_init', 13, 10, 0
+dbg_msg_8: db '[DEBUG] Phase 8 - Survived OS initialization!', 13, 10, 0
+
+dbg_serial_puts:
+    pusha
+.lp:
+    mov  al, [esi]
+    test al, al
+    jz   .dn
+.wait:
+    mov  dx, 0x3FD
+    in   al, dx
+    test al, 0x20
+    jz   .wait
+    mov  dx, 0x3F8
+    mov  al, [esi]
+    out  dx, al
+    inc  esi
+    jmp  .lp
+.dn:
+    popa
+    ret
+; ------------------------------------
+
 ; -
 ; Sub-modules
 ; -
@@ -609,3 +668,4 @@ pm_cmd_files:
 %include "pm/wm.asm"
 %include "pm/icons.asm"
 %include "pm/wallpaper.asm"
+%include "pm/paging.asm"

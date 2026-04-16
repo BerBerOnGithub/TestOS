@@ -2090,22 +2090,44 @@ wm_draw_sysinfo:
     mov  dl,  0x07
     mov  dh,  0xFF
     call fb_draw_string
-    ; read CMOS 0x17 = extended memory low byte (KB)
-    mov  al, 0x17
+    ; Read CMOS 0x34/0x35: 64KB blocks above 16MB
+    mov  al, 0x34
     out  0x70, al
     in   al, 0x71
-    movzx eax, al
-    ; read CMOS 0x18 = extended memory high byte (KB)
-    push eax
-    mov  al, 0x18
+    movzx ecx, al
+    mov  al, 0x35
     out  0x70, al
     in   al, 0x71
     movzx eax, al
     shl  eax, 8
-    pop  ecx
-    or   eax, ecx               ; EAX = extended KB (low 16-bit)
-    add  eax, 1024              ; add 1MB (conventional + HMA) in KB
+    or   eax, ecx               ; EAX = blocks above 16MB
+    
+    test eax, eax
+    jnz  .cmos_high
+    
+    ; Fallback: CMOS 0x30/0x31: KB above 1MB (max 64MB)
+    mov  al, 0x30
+    out  0x70, al
+    in   al, 0x71
+    movzx ecx, al
+    mov  al, 0x31
+    out  0x70, al
+    in   al, 0x71
+    movzx eax, al
+    shl  eax, 8
+    or   eax, ecx               ; EAX = KB
     shr  eax, 10                ; KB -> MB
+    inc  eax                    ; add 1MB base
+    jmp  .cmos_done
+
+.cmos_high:
+    shr  eax, 4                 ; blocks -> MB ( / 16 )
+    add  eax, 16                ; add 16MB base
+    
+.cmos_done:
+    mov  [si_total_mb], eax
+    mov  eax, [si_total_mb]
+    ; EAX = Total RAM in MB
     mov  edi, si_numbuf
     call si_write_dec
     mov  byte [edi], 'M'
@@ -2232,7 +2254,6 @@ si_write_dec:
 
 ; sysinfo data
 si_y:           dd 0
-si_tmp:         dd 0
 si_uptime_secs: dd 0
 si_numbuf:      times 20 db 0
 si_str_hdr:     db 'System Info', 0

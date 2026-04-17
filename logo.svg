@@ -1,0 +1,47 @@
+<svg width="600" height="200" viewBox="0 0 600 200" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>NatureOS logo</title>
+  <desc>A circular logo with a stylized leaf and circuit-trace pattern representing NatureOS</desc>
+  <style>
+    .ring { fill: none; stroke: #2d6a4f; stroke-width: 2.5; }
+    .ring2 { fill: none; stroke: #52b788; stroke-width: 1; opacity: 0.5; }
+    .leaf-main { fill: #52b788; }
+    .leaf-vein { fill: none; stroke: #1b4332; stroke-width: 1.4; stroke-linecap: round; }
+    .trace { fill: none; stroke: #40916c; stroke-width: 1.2; stroke-linecap: round; }
+    .dot { fill: #74c69d; }
+    .bg-circle { fill: #1b4332; }
+    .name { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 36px; font-weight: 700; fill: #d8f3dc; letter-spacing: -1px; }
+    .sub { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; font-weight: 400; fill: #74c69d; letter-spacing: 3px; }
+  </style>
+
+  <!-- main circle -->
+  <circle cx="100" cy="100" r="88" class="bg-circle"/>
+  <circle cx="100" cy="100" r="88" class="ring"/>
+  <circle cx="100" cy="100" r="78" class="ring2"/>
+
+  <!-- leaf -->
+  <path d="M100 32 C132 56 140 88 100 122 C60 88 68 56 100 32 Z" class="leaf-main"/>
+  <line x1="100" y1="35" x2="100" y2="120" class="leaf-vein"/>
+  <path d="M100 60 Q88 70 83 82" class="leaf-vein" style="stroke-width:0.9"/>
+  <path d="M100 60 Q112 70 117 82" class="leaf-vein" style="stroke-width:0.9"/>
+  <path d="M100 85 Q90 95 86 105" class="leaf-vein" style="stroke-width:0.9"/>
+  <path d="M100 85 Q110 95 114 105" class="leaf-vein" style="stroke-width:0.9"/>
+
+  <!-- circuit traces -->
+  <polyline points="100,124 100,140 84,140 84,156" class="trace"/>
+  <polyline points="100,140 116,140 116,156" class="trace"/>
+  <polyline points="84,156 74,156 74,170" class="trace"/>
+  <polyline points="84,156 94,156 94,170" class="trace"/>
+  <polyline points="116,156 126,156 126,170" class="trace"/>
+  <polyline points="116,156 106,156 106,170" class="trace"/>
+
+  <!-- terminal dots -->
+  <circle cx="74" cy="172" r="3" class="dot"/>
+  <circle cx="94" cy="172" r="3" class="dot"/>
+  <circle cx="106" cy="172" r="3" class="dot"/>
+  <circle cx="126" cy="172" r="3" class="dot"/>
+
+  <!-- text -->
+  <text x="210" y="95" class="name">NatureOS</text>
+  <text x="212" y="118" class="sub">PURE x86 ASSEMBLY</text>
+  <text x="212" y="142" style="font-family:'Segoe UI',system-ui,sans-serif; font-size:12px; fill:#52b788;">v2.0 — no OS, no runtime, no libraries</text>
+</svg>

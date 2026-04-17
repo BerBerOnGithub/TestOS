@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NatureOS v2.0</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #c9d1d9; line-height: 1.6; }
+    a { color: #52b788; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    header { background: #111a16; border-bottom: 1px solid #1b3a2a; padding: 60px 24px 50px; text-align: center; }
+    .logo-wrap { display: flex; justify-content: center; margin-bottom: 28px; }
+    .logo-wrap img { width: 100%; max-width: 520px; height: auto; }
+    header p { margin: 0 auto; max-width: 600px; font-size: 1.05rem; color: #6a9f7e; }
+    .badges { margin-top: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+    .badge { background: #161f1a; border: 1px solid #1b3a2a; border-radius: 20px; padding: 4px 14px; font-size: 0.82rem; color: #6a9f7e; }
+    .badge span { color: #52b788; }
+
+    main { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
+    section { margin-bottom: 52px; }
+    h2 { font-size: 1.3rem; font-weight: 600; color: #d8f3dc; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #1b3a2a; }
+    p { color: #6a9f7e; margin-bottom: 10px; }
+
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+    .card { background: #111a16; border: 1px solid #1b3a2a; border-radius: 8px; padding: 18px; }
+    .card .icon { font-size: 1.4rem; margin-bottom: 8px; }
+    .card h3 { font-size: 0.95rem; color: #d8f3dc; margin-bottom: 4px; }
+    .card p { font-size: 0.85rem; margin: 0; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { text-align: left; padding: 8px 12px; color: #52b788; font-weight: 500; border-bottom: 1px solid #1b3a2a; }
+    td { padding: 8px 12px; border-bottom: 1px solid #161f1a; color: #c9d1d9; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+
+    code { font-family: 'Consolas', 'SFMono-Regular', monospace; background: #161f1a; border: 1px solid #1b3a2a; border-radius: 4px; padding: 1px 6px; font-size: 0.85em; color: #74c69d; }
+    pre { background: #111a16; border: 1px solid #1b3a2a; border-radius: 8px; padding: 18px 20px; overflow-x: auto; font-size: 0.87rem; line-height: 1.7; }
+    pre code { background: none; border: none; padding: 0; color: #d8f3dc; font-size: inherit; }
+
+    .net-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    .net-item { background: #111a16; border: 1px solid #1b3a2a; border-radius: 6px; padding: 12px 14px; display: flex; align-items: center; gap: 8px; font-size: 0.88rem; color: #c9d1d9; }
+    .dot-green { width: 8px; height: 8px; border-radius: 50%; background: #52b788; flex-shrink: 0; }
+    .dot-planned { width: 8px; height: 8px; border-radius: 50%; background: transparent; border: 2px solid #52b788; flex-shrink: 0; }
+
+    .planned { display: inline-block; font-size: 0.72rem; font-family: 'Consolas', monospace; background: #161f1a; border: 1px solid #2d6a4f; color: #52b788; border-radius: 4px; padding: 1px 6px; vertical-align: middle; margin-left: 4px; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .col-label { font-size: 0.9rem; color: #d8f3dc; margin-bottom: 10px; }
+    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+
+    footer { text-align: center; padding: 32px 24px; border-top: 1px solid #1b3a2a; color: #2d6a4f; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-wrap">
+    <img src="logo.svg" alt="NatureOS logo" />
+  </div>
+  <p>A real bootable x86 operating system written in pure assembly.
+     No OS, no runtime, no libraries. Just hardware.</p>
+  <div class="badges">
+    <div class="badge"><span>x86</span> Assembly</div>
+    <div class="badge"><span>32-bit</span> Protected Mode</div>
+    <div class="badge"><span>640×480</span> VBE Graphics</div>
+    <div class="badge"><span>ISO</span> Bootable</div>
+  </div>
+</header>
+
+<main>
+
+  <section>
+    <h2>What is NatureOS?</h2>
+    <p>NatureOS runs directly on the CPU — from a 512-byte MBR bootloader all the way up to a graphical windowed desktop with a mouse, a terminal, a file browser, and a working network stack.</p>
+    <p>Every line is handwritten x86 assembly. BIOS calls handle early boot; bare-metal hardware drivers handle everything else.</p>
+    <div class="cards" style="margin-top: 20px;">
+      <div class="card">
+        <div class="icon">🖥️</div>
+        <h3>Real-Mode Shell</h3>
+        <p>Classic text shell with BIOS access and filesystem commands.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🪟</div>
+        <h3>GUI Desktop</h3>
+        <p>Window manager, draggable windows, taskbar, and desktop icons.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🖱️</div>
+        <h3>Mouse Support</h3>
+        <p>Full PS/2 mouse driver with cursor rendering.</p>
+      </div>
+      <div class="card">
+        <div class="icon">🌐</div>
+        <h3>Network Stack</h3>
+        <p>PCI → e1000 NIC → Ethernet → ARP → IP → ICMP → UDP → DNS.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Getting Started</h2>
+    <p style="margin-bottom: 14px;">You need three tools:</p>
+    <table>
+      <tr><th>Tool</th><th>Download</th></tr>
+      <tr><td>NASM</td><td><a href="https://nasm.us/pub/nasm/releasebuilds/?C=M&O=D">nasm.us</a></td></tr>
+      <tr><td>Python 3</td><td><a href="https://www.python.org/downloads/">python.org</a></td></tr>
+      <tr><td>QEMU</td><td><a href="https://www.qemu.org/download/#windows">qemu.org</a></td></tr>
+    </table>
+    <p style="margin-top: 18px; margin-bottom: 10px;">One-time Python dependency:</p>
+    <pre><code>pip install pycdlib</code></pre>
+    <p style="margin-top: 18px; margin-bottom: 10px;">Build and run:</p>
+    <pre><code>build.bat        # build natureos.iso
+build.bat run    # build + launch in QEMU</code></pre>
+    <p style="margin-top: 18px; margin-bottom: 10px;">Or launch QEMU manually:</p>
+    <pre><code>qemu-system-x86_64 \
+  -cdrom natureos.iso \
+  -drive format=raw,file=data.img,if=ide,index=3 \
+  -boot d -m 64M -cpu qemu64 -smp 1 \
+  -vga std -rtc base=localtime \
+  -nic user,model=e1000 \
+  -display sdl,window-close=on \
+  -name "NatureOS" -no-reboot</code></pre>
+    <p style="font-size: 0.85rem; margin-top: 8px;">Linux/macOS: replace <code>driver=dsound</code> with <code>driver=pa</code> or <code>driver=alsa</code>.</p>
+  </section>
+
+  <section>
+    <h2>Commands</h2>
+    <div class="two-col">
+      <div>
+        <p class="col-label">Real-Mode Shell</p>
+        <table>
+          <tr><th>Command</th><th>Description</th></tr>
+          <tr><td><code>help</code></td><td>List all commands</td></tr>
+          <tr><td><code>echo &lt;text&gt;</code></td><td>Print text</td></tr>
+          <tr><td><code>calc &lt;n&gt; &lt;op&gt; &lt;n&gt;</code></td><td>Calculator</td></tr>
+          <tr><td><code>ls</code></td><td>List files</td></tr>
+          <tr><td><code>run &lt;n&gt;</code></td><td>Run an app</td></tr>
+          <tr><td><code>sys</code></td><td>System snapshot</td></tr>
+          <tr><td><code>fortune</code></td><td>Random quote</td></tr>
+          <tr><td><code>guess</code></td><td>Number guessing game</td></tr>
+          <tr><td><code>color [XX]</code></td><td>Set shell colour</td></tr>
+          <tr><td><code>pm</code></td><td>Enter graphical desktop</td></tr>
+          <tr><td><code>reboot</code></td><td>Reboot</td></tr>
+        </table>
+      </div>
+      <div>
+        <p class="col-label">Protected-Mode Terminal</p>
+        <table>
+          <tr><th>Command</th><th>Description</th></tr>
+          <tr><td><code>ls</code></td><td>List all files</td></tr>
+          <tr><td><code>cat &lt;n&gt;</code></td><td>Print file contents</td></tr>
+          <tr><td><code>rm &lt;n&gt;</code></td><td>Delete a file</td></tr>
+          <tr><td><code>hexdump &lt;n&gt;</code></td><td>Hex + ASCII dump</td></tr>
+          <tr><td><code>ping &lt;ip&gt;</code></td><td>ICMP ping</td></tr>
+          <tr><td><code>dns &lt;host&gt;</code></td><td>DNS lookup</td></tr>
+          <tr><td><code>pci</code></td><td>Enumerate PCI devices</td></tr>
+          <tr><td><code>clock</code></td><td>Stopwatch/timer window</td></tr>
+          <tr><td><code>files</code></td><td>File browser window</td></tr>
+          <tr><td><code>savescr</code></td><td>Save screenshot</td></tr>
+          <tr><td><code>exit</code></td><td>Return to real-mode shell</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Network Stack</h2>
+    <p style="margin-bottom: 14px;">Full network stack written in assembly — filled dot = done, outlined = planned.</p>
+    <div class="net-grid">
+      <div class="net-item"><div class="dot-green"></div> PCI</div>
+      <div class="net-item"><div class="dot-green"></div> e1000 NIC</div>
+      <div class="net-item"><div class="dot-green"></div> Ethernet</div>
+      <div class="net-item"><div class="dot-green"></div> ARP</div>
+      <div class="net-item"><div class="dot-green"></div> IPv4</div>
+      <div class="net-item"><div class="dot-green"></div> ICMP / ping</div>
+      <div class="net-item"><div class="dot-green"></div> UDP</div>
+      <div class="net-item"><div class="dot-green"></div> DNS</div>
+      <div class="net-item" style="color: #6a9f7e;"><div class="dot-planned"></div> TCP <span class="planned">planned</span></div>
+      <div class="net-item" style="color: #6a9f7e;"><div class="dot-planned"></div> HTTP <span class="planned">planned</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Planned Features <span class="planned">roadmap</span></h2>
+    <table>
+      <tr><th>Feature</th><th>Notes</th></tr>
+      <tr>
+        <td>TCP <span class="planned">planned</span></td>
+        <td>Full TCP implementation on top of the existing IP stack — enables HTTP and other stream-based protocols.</td>
+      </tr>
+      <tr>
+        <td>HTTP client <span class="planned">planned</span></td>
+        <td>Simple GET/POST client for fetching web resources from the desktop terminal. Depends on TCP.</td>
+      </tr>
+      <tr>
+        <td>Text editor <span class="planned">planned</span></td>
+        <td>Basic in-desktop editor for files on the writable data disk.</td>
+      </tr>
+      <tr>
+        <td>PM audio driver <span class="planned">planned</span></td>
+        <td>PC speaker works in real mode (<code>beep</code>). A full protected-mode audio driver is on the roadmap.</td>
+      </tr>
+      <tr>
+        <td>More apps <span class="planned">planned</span></td>
+        <td>The app SDK (<code>sdk.asm</code>) is already in place — more assembly apps are planned.</td>
+      </tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>How It Works</h2>
+    <p>The BIOS loads <code>boot.asm</code> (512 bytes) at <code>0x7C00</code>. Stage 2 uses INT 13h LBA reads to load the kernel and filesystem into memory.</p>
+    <p>The kernel initialises real-mode drivers and drops into a command shell. Typing <code>pm</code> switches to 32-bit protected mode: GDT loaded, <code>CR0.PE=1</code>, far jump to <code>pm_entry</code>. VBE graphics (640×480, 8bpp), the PS/2 mouse driver, and the graphical desktop start up.</p>
+    <p style="margin-top: 14px; margin-bottom: 10px;">Project layout:</p>
+    <pre><code>natureos/
+├── boot.asm          512-byte MBR bootloader
+├── stage2.asm        Stage 2 loader
+├── kernel.asm        Kernel entry + includes
+├── sdk.asm           App SDK (syscall macros)
+├── apps/             Files packed into the filesystem
+├── core/             Real-mode hardware abstractions
+├── shell/            Real-mode shell
+├── commands/         Real-mode commands
+└── pm/               32-bit protected mode
+    ├── wm.asm        Window manager
+    ├── terminal.asm  Terminal emulator
+    ├── gfx.asm       Framebuffer primitives
+    ├── mouse.asm     PS/2 mouse driver
+    └── net/          Network stack (PCI → DNS)</code></pre>
+  </section>
+
+  <section>
+    <h2>Custom Wallpaper</h2>
+    <p>Drop a file named <code>wallpaper.bmp</code> into the <code>apps/</code> folder before building. Requirements: BMP format, 8-bit indexed (256 colour), exactly 640×480 pixels.</p>
+  </section>
+
+</main>
+
+<footer>
+  NatureOS v2.0 — written in pure x86 assembly
+</footer>
+
+</body>
+</html>

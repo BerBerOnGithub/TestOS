@@ -1,14 +1,9 @@
-## What this OS has
+## What's new
 
-- Full TCP/IP network stack
-- Text mode and Graphical Mode
-- Mouse and keyboard support
-- Screenshot capture and save to disk (PrtSc + `savescr`)
-- Stopwatch and countdown timer windows
-- Basic file browser
-- Taskbar with window switching
-- Custom wallpaper support (640×480 8-bit BMP)
-- Data disk read and write
+- Optimized network stack
+Browser:
+	- Added DNS support
+	- Added basic HTML syntax support
 
 
 

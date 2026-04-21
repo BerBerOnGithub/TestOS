@@ -183,6 +183,7 @@ mouse_poll:
     mov  ebx, 479
 .new_ok:
     call gfx_mark_dirty
+    call gfx_flush          ; flush immediately - makes cursor erase+draw atomic on hardware
     ret
 
 ; -

@@ -1,4 +1,4 @@
-; ===========================================================================
+﻿; ===========================================================================
 ; pm/wm.asm  -  NatureOS Window Manager
 ;
 ; Up to WM_MAX_WINS windows.  Window types: TERM, CLOCK, FILES.
@@ -2104,6 +2104,9 @@ wm_update_contents:
 .no_rtc_tick:
     ; update clock only per second
     call wm_draw_taskbar_clock
+    ; also redraw sysinfo widget (uptime, files, disk) once per second
+    ; use full redraw to respect z-order (sysinfo must not draw over windows)
+    call wm_draw_all
 .no_clock:
     pop  eax
 
@@ -2454,6 +2457,15 @@ wm_draw_sysinfo:
     mov  dl,  0x0A
     mov  dh,  0xFF
     call fb_draw_string
+
+    ; mark sysinfo region dirty so gfx_flush picks it up
+    push eax
+    push ebx
+    xor  eax, eax
+    mov  ebx, 88
+    call gfx_mark_dirty
+    pop  ebx
+    pop  eax
 
     popa
     ret

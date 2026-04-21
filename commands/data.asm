@@ -253,8 +253,9 @@ str_help_pg2:
     db ' | guess                      | number guessing game (1-100)  |', 13, 10
     db ' | colors                     | show all 16 colour swatches   |', 13, 10
     db ' | ls                         | list filesystem files         |', 13, 10
-    db ' | run <name>                 | run an app from ClaudeFS      |', 13, 10
+    db ' | run <name>                 | run an app from ', FS_NAME, '      |', 13, 10
     db ' | probe                      | verify you are in real mode   |', 13, 10
+
     db ' | drivers                    | show loaded RM drivers        |', 13, 10
     db ' | pm                         | switch to 32-bit prot. mode   |', 13, 10
     db ' +----------------------------+--------------------------------+', 13, 10
@@ -287,8 +288,9 @@ str_mem_text:
     db ' 0x00400-0x004FF BDA', 13, 10
     db ' 0x00500-0x07BFF Stack/Free', 13, 10
     db ' 0x07C00-0x07DFF Bootloader', 13, 10
-    db ' 0x08000-0x17FFF NatureOS Kernel', 13, 10
+    db ' 0x08000-0x17FFF ', OS_NAME, ' Kernel', 13, 10
     db ' 0x0C000-0x9FFFF Conv.RAM', 13, 10
+
     db ' 0xB8000-0xBFFFF VGA Buffer', 13, 10
     db ' 0xC0000-0xFFFFF ROM/BIOS', 13, 10
     db 13, 10

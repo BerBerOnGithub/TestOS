@@ -1,5 +1,5 @@
 # ===========================================================================
-# Makefile - ClaudeOS Build System (ISO edition)
+# Makefile - NatureOS Build System (ISO edition)
 # ===========================================================================
 
 ASM      := nasm
@@ -9,8 +9,8 @@ BOOT_BIN   := build/boot.bin
 STAGE2_BIN := build/stage2.bin
 KERNEL_BIN := build/kernel.bin
 FS_BIN     := build/fs.bin
-FLAT_IMG   := build/claudeos_flat.img
-ISO        := claudeos.iso
+FLAT_IMG   := build/natureos_flat.img
+ISO        := natureos.iso
 
 # Sector layout - aligned to 2048-byte CD sectors (4 x 512-byte sectors each)
 # 2048-LBA 0 = 512-sector 0: boot.bin + stage2 (preloaded by El Torito)
@@ -63,7 +63,7 @@ $(FLAT_IMG): $(BOOT_BIN) $(STAGE2_BIN) $(KERNEL_BIN) $(FS_BIN)
 $(ISO): $(FLAT_IMG)
 	xorriso -as mkisofs \
 	    -o $(ISO) \
-	    -b claudeos_flat.img \
+	    -b natureos_flat.img \
 	    -no-emul-boot \
 	    -boot-load-size 4 \
 	    build/

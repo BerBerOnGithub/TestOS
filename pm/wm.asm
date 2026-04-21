@@ -1808,8 +1808,9 @@ wm_draw_files:
     add  dword [wm_fy], 10
 
     ; check FS magic
-    cmp  dword [FS_PM_BASE], 0x53464C43
+    cmp  dword [FS_PM_BASE], FS_MAGIC_VAL
     jne  .fno_iso
+
 
     movzx eax, word [FS_PM_BASE + 4]
     test eax, eax
@@ -2582,8 +2583,9 @@ wm_s_help_sep:   db '------------------------------', 0
 wm_s_help_l1:    db 'A hobby OS built in x86 assembly,', 0
 wm_s_help_l2:    db 'running in 32-bit protected mode', 0
 wm_s_help_l3:    db 'with a VBE graphical desktop,', 0
-wm_s_help_l4:    db 'mouse, windows and ClaudeFS.', 0
+wm_s_help_l4:    db 'mouse, windows and ', FS_NAME, '.', 0
 wm_s_help_sec2:  db 'Commands (type in terminal):', 0
+
 wm_s_help_c1:    db '  term / files / stopwatch', 0
 wm_s_help_c2:    db '  timer MM:SS  (countdown)', 0
 wm_s_help_c3:    db '  calc <n> <op> <n>', 0

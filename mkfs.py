@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # ===========================================================================
-# mkfs.py - ClaudeOS Filesystem Packer
+# mkfs.py - NatureOS Filesystem Packer
 #
 # Scans the apps/ folder for .bin files and packs them into fs.bin.
 #
-# Filesystem format (ClaudeFS):
+# Filesystem format (NatureFS):
+
 #   Offset 0:   4 bytes  magic       = 0x434C4653 ("CLFS")
 #   Offset 4:   2 bytes  file count
 #   Offset 6:   N * 24 bytes directory entries:

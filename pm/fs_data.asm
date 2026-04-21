@@ -1,9 +1,10 @@
 ; ===========================================================================
-; pm/fs_data.asm  -  ClaudeFS Data Disk (read/write, ATA drive 1)
+; pm/fs_data.asm  -  NatureFS Data Disk (read/write, ATA drive 1)
 ;
 ; Disk layout (matches mkdata.py):
 ;   Sector 0:       Header (512 bytes)
 ;     +0   4 bytes  magic "CLFD"
+
 ;     +4   2 bytes  version
 ;     +6   2 bytes  max entries (64)
 ;     +8   4 bytes  data start sector (5)
@@ -29,8 +30,9 @@
 
 [BITS 32]
 
-FSD_MAGIC       equ 0x44464C43   ; 'CLFD' little-endian
+FSD_MAGIC       equ FS_DATA_MAGIC_VAL
 FSD_MAX_ENT     equ 64
+
 FSD_ENT_SZ      equ 32
 FSD_NAME_LEN    equ 16
 FSD_DIR_SECTS   equ 4            ; sectors 1-4

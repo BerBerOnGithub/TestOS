@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ===========================================================================
-# mkiso.py - Build claudeos.iso using pure Python (pycdlib)
+# mkiso.py - Build natureos.iso using pure Python (pycdlib)
 #            Produces a HYBRID ISO that Rufus can write to a USB stick.
 #
 # What makes it hybrid / Rufus-compatible:
@@ -37,9 +37,10 @@ except ImportError:
     print("ERROR: pycdlib not found. Run: pip install pycdlib")
     sys.exit(1)
 
-FLAT_IMG = os.path.join('build', 'claudeos_flat.img')
-ISO_OUT  = 'claudeos.iso'
+FLAT_IMG = os.path.join('build', 'natureos_flat.img')
+ISO_OUT  = 'natureos.iso'
 BOOT_BIN = os.path.join('build', 'boot.bin')
+
 
 
 def lba_to_chs(lba, heads=64, spt=32):
@@ -85,14 +86,14 @@ iso = pycdlib.PyCdlib()
 iso.new(
     interchange_level=1,
     sys_ident='',
-    vol_ident='CLAUDEOS',
+    vol_ident='NATUREOS',
     set_size=1,
     seqnum=1,
     log_block_size=2048,
     vol_set_ident='',
     pub_ident_str='',
     preparer_ident_str='',
-    app_ident_str='ClaudeOS',
+    app_ident_str='NatureOS',
     copyright_file='',
     abstract_file='',
     bibli_file='',
@@ -107,11 +108,12 @@ iso.new(
 iso.add_fp(
     fp=io.BytesIO(flat_data),
     length=len(flat_data),
-    iso_path='/CLAUDEOS.IMG;1'
+    iso_path='/NATUREOS.IMG;1'
 )
 
 iso.add_eltorito(
-    bootfile_path='/CLAUDEOS.IMG;1',
+    bootfile_path='/NATUREOS.IMG;1',
+
     bootcatfile='/BOOT.CAT;1',
     media_name='noemul',
     boot_load_size=4,
@@ -209,9 +211,11 @@ print()
 print("  Rufus instructions:")
 print("    1. Open Rufus")
 print("    2. Select your USB drive")
-print("    3. Boot selection -> SELECT -> claudeos.iso")
+print("    3. Boot selection -> SELECT -> natureos.iso")
+
 print("    4. Partition scheme: MBR   Target system: BIOS or UEFI-CSM")
 print('    5. START  -> choose "Write in DD Image mode" when prompted')
 print()
 print("  QEMU test:")
-print("    qemu-system-x86_64 -cdrom claudeos.iso -boot d -m 64M")
+print("    qemu-system-x86_64 -cdrom natureos.iso -boot d -m 64M")
+

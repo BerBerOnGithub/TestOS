@@ -38,7 +38,9 @@ dap:
 ; Shortened strings to save space
 msg_hello:    db OS_NAME, ' Stage 2', 13, 10, 0
 msg_kernel:   db 'Kernel...', 0
-msg_fs:       db ' FS...', 0
+msg_fs:       db ' ', FS_NAME, '...', 0
+
+
 msg_ok:       db 'OK', 13, 10, 0
 msg_error:    db 'ERR', 13, 10, 0
 msg_data_ok:  db 'Disk OK', 13, 10, 0
@@ -118,7 +120,8 @@ stage2_main:
     jc   .next
     mov  ax, 0x8000
     mov  es, ax
-    cmp  dword [es:0], 0x44464C43 ; CLFD magic
+    cmp  dword [es:0], FS_DATA_MAGIC_VAL ; magic
+
     jne  .next
     mov  al, [data_drv]
     mov  [es:20], al         ; store drive num

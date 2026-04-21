@@ -296,7 +296,8 @@ cursor_erase:
     ret
 
 ; -
-; cursor_load_bmp  "  load cursor pixels from "cursor" file in ClaudeFS
+; cursor_load_bmp  "  load cursor pixels from "cursor" file in NatureFS
+
 ;
 ; Reads a 16x16 8bpp BMP.  On success sets cursor_use_bmp=1 and fills
 ; cursor_bmp_pixels[256] with the 16x16 palette-index pixels (top row first).
@@ -554,7 +555,8 @@ cursor_use_bmp:      db 0           ; 1 = use bitmap cursor, 0 = use arrow
 cursor_bmp_transp:   db 0x01       ; palette index treated as transparent
                      dw 0           ; align
 cursor_bmp_pixels:   times 256 db 0 ; 16-16 palette-index pixel data (top-row first)
-cursor_bmp_name:     db 'cursor', 0 ; ClaudeFS filename to search
+cursor_bmp_name:     db 'cursor', 0 ; NatureFS filename to search
+
 
 ; 12x12 arrow cursor
 ; Row by row, MSB=leftmost, 8 bits used (cols 0-7), rows 0-11

@@ -12,3 +12,13 @@
 %define OS_AUTHOR        "Claude (Anthropic)"
 %define OS_ARCH_RM       "x86 16-bit"
 %define OS_ARCH_PM       "32-bit Protected Mode"
+
+; Filesystem Names
+%define FS_NAME          "NatureFS"
+%define FS_DATA_NAME     "NatureFS Data Disk"
+
+; Magic numbers
+%define FS_MAGIC         "CLFS"
+%define FS_MAGIC_VAL     0x53464C43   ; 'CLFS'
+%define FS_DATA_MAGIC    "CLFD"
+%define FS_DATA_MAGIC_VAL 0x44464C43  ; 'CLFD'

@@ -1,13 +1,14 @@
 ; ===========================================================================
-; commands/cmd_fs.asm - ClaudeFS filesystem commands
+; commands/cmd_fs.asm - ', FS_NAME, ' filesystem commands
 ;
 ; ls        - list all files
 ; run <n>   - execute a file by name
 ;
 ; FS blob loaded at physical 0x20000 = segment 0x2000, offset 0.
 ;
-; ClaudeFS layout (little-endian):
-;   +0   4 bytes  magic "CLFS"
+; ', FS_NAME, ' layout (little-endian):
+;   +0   4 bytes  magic "', FS_MAGIC, '"
+
 ;   +4   2 bytes  file count
 ;   +6   N*24 bytes directory entries:
 ;       +0  16 bytes  filename (null-padded)
@@ -30,19 +31,14 @@ fs_valid:
     push es
     mov  ax, FS_SEG
     mov  es, ax
-    cmp  byte [es:0], 'C'
-    jne  .bad
-    cmp  byte [es:1], 'L'
-    jne  .bad
-    cmp  byte [es:2], 'F'
-    jne  .bad
-    cmp  byte [es:3], 'S'
+    cmp  dword [es:0], FS_MAGIC_VAL
     jne  .bad
     pop  es
     pop  bx
     pop  ax
     xor  ax, ax          ; ZF=1
     ret
+
 .bad:
     pop  es
     pop  bx

@@ -1,25 +1,8 @@
 ; ===========================================================================
-; kernel.asm - NatureOS Kernel v2.0
-;
-; Entry point only. Components are %included in two sections:
-;
-;   16-bit real mode (BIOS-based)
-;    core/        hardware abstractions (screen, keyboard, string, utils)
-;    drivers/     real-mode driver registry (screen, kbd, rtc, speaker)
-;    shell/       prompt, readline, command dispatcher
-;    commands/    built-in commands + all string data
-;
-;   32-bit protected mode (no BIOS)
-;    pm/          PM shell, VGA/kbd/PIT drivers, PM driver registry
-;
-; Boot flow:
-;   kernel_main -> drv_rm_init -> boot_menu
-;   [1] -> vbe_init -> boot_to_pm -> PM desktop
-;   [2] -> rm_shell_loop (real-mode text shell)
-;   "exit" in PM -> drv_rm_init -> rm_shell_loop
-;
-; Assemble: nasm -f bin -o kernel.bin kernel.asm
+; kernel.asm - NatureOS Kernel
 ; ===========================================================================
+
+%include "NatureOS/include/version.inc"
 
 [BITS 16]
 [ORG 0x8000]

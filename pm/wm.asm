@@ -1,4 +1,4 @@
-﻿; ===========================================================================
+; ===========================================================================
 ; pm/wm.asm  -  NatureOS Window Manager
 ;
 ; Up to WM_MAX_WINS windows.  Window types: TERM, CLOCK, FILES.
@@ -2565,19 +2565,19 @@ wm_fcount:       dd 0
 wm_iso_count:    dd 0
 wm_dat_count:    dd 0
 
-wm_s_brand:      db 'NatureOS', 0
-wm_s_logo:       db 'NatureOS', 0
-wm_s_logo_ver:   db 'v2.0', 0
-wm_s_watermark_os:    db 'NatureOS', 0
-wm_s_watermark_build: db 'Build 2.0.0', 0
+wm_s_brand:      db OS_NAME, 0
+wm_s_logo:       db OS_NAME, 0
+wm_s_logo_ver:   db 'v', OS_VERSION, 0
+wm_s_watermark_os:    db OS_NAME, 0
+wm_s_watermark_build: db 'Build ', OS_BUILD, 0
 wm_s_term:       db 'Terminal', 0
 wm_s_clock:      db 'Stopwatch', 0
 wm_s_files:      db 'Files', 0
-wm_s_help:       db 'About NatureOS', 0
+wm_s_help:       db 'About ', OS_NAME, 0
 wm_s_browser:    db 'Simple Browser', 0
 
 ; Help window content
-wm_s_help_title: db 'NatureOS  Build 2.0.0', 0
+wm_s_help_title: db OS_NAME, '  Build ', OS_BUILD, 0
 wm_s_help_sep:   db '------------------------------', 0
 wm_s_help_l1:    db 'A hobby OS built in x86 assembly,', 0
 wm_s_help_l2:    db 'running in 32-bit protected mode', 0

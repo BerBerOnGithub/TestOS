@@ -15,4 +15,4 @@
 
     retf
 
-msg: db ' Hello from a NatureOS app!', 13, 10, 0
+msg: db ' Hello from a ', OS_NAME, ' app!', 13, 10, 0

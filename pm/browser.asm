@@ -1804,7 +1804,7 @@ browser_content  equ 0x140000
 browser_s_go:    db 'Go', 0
 browser_s_default_url: db '142.250.180.142 80 /', 0
 browser_s_hdr_host:    db 'Host: google.com', 13, 10, 0
-browser_s_welcome: db 'Welcome to NatureOS Browser!', 13, 10, 'Usage: http://hostname/path or IP PORT PATH', 0
+browser_s_welcome: db 'Welcome to ', OS_NAME, ' Browser!', 13, 10, 'Usage: http://hostname/path or IP PORT PATH', 0
 browser_s_fetching: db 'Fetching...', 0
 browser_s_err_url:  db 'Error: Invalid URL format.', 0
 browser_s_err_conn: db 'Error: Connection failed.', 0

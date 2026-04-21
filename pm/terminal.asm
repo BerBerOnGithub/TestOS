@@ -529,7 +529,7 @@ term_scroll_lim:  dd 0
 
 term_buf          equ 0x134000
 
-term_str_banner:  db 'NatureOS v2.0 - type help for commands', 0
+term_str_banner:  db OS_NAME, ' v', OS_VERSION, ' - type help for commands', 0
 term_str_disk_ok: db 'Data disk: OK', 0
 term_str_disk_no: db 'Data disk: not found (no -drive attached?)', 0
 term_str_prompt:  db '> ', 0

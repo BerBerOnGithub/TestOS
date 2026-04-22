@@ -574,12 +574,13 @@ pm_cmd_ls:
     mov  esi, ls_str_iso_sec
     call term_puts
 
-    cmp  dword [FS_PM_BASE], 0x53464C43
+    cmp  dword [FS_PM_BASE], FS_MAGIC_VAL
     jne  .iso_no
 
     movzx ecx, word [FS_PM_BASE + 4]
     test ecx, ecx
     jz   .iso_empty
+
 
     mov  esi, FS_PM_BASE + 6     ; first directory entry
 .iso_row:
@@ -610,10 +611,11 @@ pm_cmd_ls:
     call term_puts
     call term_newline
 .iso_no:
-    cmp  dword [FS_PM_BASE], 0x53464C43
+    cmp  dword [FS_PM_BASE], FS_MAGIC_VAL
     je   .iso_done
     mov  esi, ls_str_no_iso
     call term_puts
+
     call term_newline
 .iso_done:
 
@@ -745,8 +747,9 @@ pm_cmd_cat:
 
 .try_iso:
     ; look in ISO FS
-    cmp  dword [FS_PM_BASE], 0x53464C43
+    cmp  dword [FS_PM_BASE], FS_MAGIC_VAL
     jne  .not_found
+
 
     mov  esi, pm_input_buf
     add  esi, 4
@@ -861,8 +864,9 @@ pm_cmd_hexdump:
     jmp  .dump
 
 .try_iso_hex:
-    cmp  dword [FS_PM_BASE], 0x53464C43
+    cmp  dword [FS_PM_BASE], FS_MAGIC_VAL
     jne  .hex_notfound
+
     mov  esi, pm_input_buf
     add  esi, 8
     call pm_skip_spaces

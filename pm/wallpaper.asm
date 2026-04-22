@@ -1,7 +1,8 @@
 ; ===========================================================================
 ; pm/wallpaper.asm  "  Desktop wallpaper loader + blitter
 ;
-; Loads any 8-bit indexed BMP from ClaudeFS without modifying it.
+; Loads any 8-bit indexed BMP from NatureFS without modifying it.
+
 ; Palette split at runtime:
 ;   DAC slots  0-15  : system colours " NEVER touched
 ;   DAC slots 16-255 : wallpaper colours " BMP palette entries remapped here

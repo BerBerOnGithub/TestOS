@@ -71,7 +71,7 @@ pm_scancode_shift:
 pm_banner:
     db 13, 10
     db ' +----------------------+----------------------------+', 13, 10
-    db ' |   NatureOS v2.0 - 32-bit Protected Mode Shell   |', 13, 10
+    db ' |   ', OS_NAME, ' v', OS_VERSION, ' - ', OS_ARCH_PM, ' Shell   |', 13, 10
     db ' |   No BIOS. Direct hardware access.              |', 13, 10
     db ' -', 13, 10
     db ' Type "help" for commands.', 13, 10, 10, 0
@@ -129,7 +129,7 @@ pm_str_exit_msg:
 pm_str_help_text:
     db 13, 10
     db ' +----------------------+----------------------------+', 13, 10
-    db ' |  NatureOS v2.0  PM   |  Command Reference         |', 13, 10
+    db ' |  ', OS_NAME, ' v', OS_VERSION, '  PM   |  Command Reference         |', 13, 10
     db ' +----------------------+----------------------------+', 13, 10
     db ' | help                 | this screen                |', 13, 10
     db ' | clear                | clear terminal             |', 13, 10

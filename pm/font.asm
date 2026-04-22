@@ -298,7 +298,7 @@ font_data:
     db 0x00,0x10,0x38,0x6C,0xC6,0xC6,0xFE,0x00  ; 7F
 
 ; String for title bar test
-pm_str_title: db 'NatureOS v2.0', 0
+pm_str_title: db OS_NAME, ' v', OS_VERSION, 0
 
 ; -
 ; fb_draw_char_scaled

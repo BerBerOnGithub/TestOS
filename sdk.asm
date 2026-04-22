@@ -1,8 +1,8 @@
 ; ===========================================================================
 ; sdk.asm - NatureOS App SDK
-; Apps call the kernel via a far call to the fixed entry point at 0x0000:0x8100
-; No IVT modification needed " no conflicts with BIOS or PM switch.
 ; ===========================================================================
+
+%include "include/version.inc"
 
 ; syscall numbers (passed in AH)
 SYS_PRINT_STR   equ 0x00

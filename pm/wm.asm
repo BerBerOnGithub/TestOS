@@ -1,4 +1,4 @@
-﻿; ===========================================================================
+; ===========================================================================
 ; pm/wm.asm  -  NatureOS Window Manager
 ;
 ; Up to WM_MAX_WINS windows.  Window types: TERM, CLOCK, FILES.
@@ -1808,8 +1808,9 @@ wm_draw_files:
     add  dword [wm_fy], 10
 
     ; check FS magic
-    cmp  dword [FS_PM_BASE], 0x53464C43
+    cmp  dword [FS_PM_BASE], FS_MAGIC_VAL
     jne  .fno_iso
+
 
     movzx eax, word [FS_PM_BASE + 4]
     test eax, eax
@@ -2565,25 +2566,26 @@ wm_fcount:       dd 0
 wm_iso_count:    dd 0
 wm_dat_count:    dd 0
 
-wm_s_brand:      db 'NatureOS', 0
-wm_s_logo:       db 'NatureOS', 0
-wm_s_logo_ver:   db 'v2.0', 0
-wm_s_watermark_os:    db 'NatureOS', 0
-wm_s_watermark_build: db 'Build 2.0.0', 0
+wm_s_brand:      db OS_NAME, 0
+wm_s_logo:       db OS_NAME, 0
+wm_s_logo_ver:   db 'v', OS_VERSION, 0
+wm_s_watermark_os:    db OS_NAME, 0
+wm_s_watermark_build: db 'Build ', OS_BUILD, 0
 wm_s_term:       db 'Terminal', 0
 wm_s_clock:      db 'Stopwatch', 0
 wm_s_files:      db 'Files', 0
-wm_s_help:       db 'About NatureOS', 0
+wm_s_help:       db 'About ', OS_NAME, 0
 wm_s_browser:    db 'Simple Browser', 0
 
 ; Help window content
-wm_s_help_title: db 'NatureOS  Build 2.0.0', 0
+wm_s_help_title: db OS_NAME, '  Build ', OS_BUILD, 0
 wm_s_help_sep:   db '------------------------------', 0
 wm_s_help_l1:    db 'A hobby OS built in x86 assembly,', 0
 wm_s_help_l2:    db 'running in 32-bit protected mode', 0
 wm_s_help_l3:    db 'with a VBE graphical desktop,', 0
-wm_s_help_l4:    db 'mouse, windows and ClaudeFS.', 0
+wm_s_help_l4:    db 'mouse, windows and ', FS_NAME, '.', 0
 wm_s_help_sec2:  db 'Commands (type in terminal):', 0
+
 wm_s_help_c1:    db '  term / files / stopwatch', 0
 wm_s_help_c2:    db '  timer MM:SS  (countdown)', 0
 wm_s_help_c3:    db '  calc <n> <op> <n>', 0

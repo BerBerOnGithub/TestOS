@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ===========================================================================
-# mkdata.py - Create a blank ClaudeFS Data disk image (data.img)
+# mkdata.py - Create a blank NatureFS Data disk image (data.img)
 #
 # Layout:
 #   Sector 0:       FS header (512 bytes)
@@ -38,6 +38,7 @@ if os.path.exists(OUTPUT):
     print(f'[mkdata] {OUTPUT} already exists - skipping (delete to recreate)')
 else:
     img = bytearray(IMG_SIZE)
+
 
     # Sector 0: header
     struct.pack_into('<4sHHIIII', img, 0,

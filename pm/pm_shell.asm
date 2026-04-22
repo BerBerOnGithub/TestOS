@@ -31,9 +31,10 @@ pm_entry:
 
     mov  esi, dbg_msg_4
     call dbg_serial_puts
-    call fsd_init           ; read ClaudeFS data directory into RAM
+    call fsd_init           ; read filesystem data directory into RAM
 
     mov  esi, dbg_msg_5
+
     call dbg_serial_puts
     call pm_drv_init        ; init NIC before interrupts are enabled
 
@@ -60,11 +61,12 @@ pm_entry:
     ; load wallpaper first ,! populates WP_REMAP used by icons + cursor
     call wallpaper_load
 
-    ; try to load bitmap cursor from ClaudeFS
+    ; try to load bitmap cursor from filesystem
     call cursor_load_bmp
 
-    ; load desktop icons from ClaudeFS
+    ; load desktop icons from filesystem
     call icons_init
+
 
     ; open the initial Terminal window ,! offset right to leave icon column
     mov  al,  WM_TERM

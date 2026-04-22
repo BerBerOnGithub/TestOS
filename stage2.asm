@@ -1,15 +1,8 @@
 ; ===========================================================================
 ; stage2.asm - NatureOS Stage 2 Bootloader
-;
-; CD-ROM INT 13h AH=0x42 uses 2048-byte sectors (not 512).
-; Layout is aligned to 2048-byte boundaries:
-;   2048-LBA 0: boot.bin + stage2 (first 2048 bytes, preloaded by El Torito)
-;   2048-LBA 1: kernel (50 x 2048-byte blocks = 100KB)
-;   2048-LBA 51: FS    (400 x 2048-byte blocks = 800KB)
-;
-; The flat image base LBA is read dynamically from the El Torito Boot Record
-; (CD-LBA 17) so this works regardless of how pycdlib lays out the ISO.
 ; ===========================================================================
+
+%include "include/version.inc"
 
 [BITS 16]
 [ORG 0x7E00]
@@ -43,9 +36,11 @@ dap:
 .lba_hi:  dd 0
 
 ; Shortened strings to save space
-msg_hello:    db 'NatureOS Stage 2', 13, 10, 0
+msg_hello:    db OS_NAME, ' Stage 2', 13, 10, 0
 msg_kernel:   db 'Kernel...', 0
-msg_fs:       db ' FS...', 0
+msg_fs:       db ' ', FS_NAME, '...', 0
+
+
 msg_ok:       db 'OK', 13, 10, 0
 msg_error:    db 'ERR', 13, 10, 0
 msg_data_ok:  db 'Disk OK', 13, 10, 0
@@ -125,7 +120,8 @@ stage2_main:
     jc   .next
     mov  ax, 0x8000
     mov  es, ax
-    cmp  dword [es:0], 0x44464C43 ; CLFD magic
+    cmp  dword [es:0], FS_DATA_MAGIC_VAL ; magic
+
     jne  .next
     mov  al, [data_drv]
     mov  [es:20], al         ; store drive num

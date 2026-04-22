@@ -1,11 +1,12 @@
 ; ===========================================================================
-; pm/fs_pm.asm  -  Protected-mode ClaudeFS reader
+; pm/fs_pm.asm  -  Protected-mode ', FS_NAME, ' reader
 ;
 ; The FS blob is loaded by stage2 to physical 0x20000.
 ; In 32-bit flat mode that is simply address 0x20000.
 ;
-; ClaudeFS layout (matches cmd_fs.asm / mkfs.py):
-;   +0   4 bytes  magic "CLFS"
+; ', FS_NAME, ' layout (matches cmd_fs.asm / mkfs.py):
+;   +0   4 bytes  magic "', FS_MAGIC, '"
+
 ;   +4   2 bytes  file count  (word, little-endian)
 ;   +6   N-24 bytes directory entries
 ;        +0  16 bytes  filename (null-padded, no path)
@@ -34,9 +35,10 @@ fs_pm_find:
     push esi
     push edi
 
-    ; check magic "CLFS"
-    cmp  dword [FS_PM_BASE], 0x53464C43   ; 'CLFS' little-endian
+    ; check magic
+    cmp  dword [FS_PM_BASE], FS_MAGIC_VAL
     jne  .notfound
+
 
     movzx ecx, word [FS_PM_BASE + 4]      ; file count
     test ecx, ecx

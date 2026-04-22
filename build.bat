@@ -1,6 +1,6 @@
 @echo off
 REM ===========================================================================
-REM build.bat - ClaudeOS Build Script (ISO edition)
+REM build.bat - NatureOS Build Script (ISO edition)
 REM Requires: nasm, python + pycdlib (pip install pycdlib)
 REM ===========================================================================
 setlocal
@@ -74,7 +74,7 @@ set /a FLAT_BYTES=%FLAT_SECTORS%*512
 set /a FS_OFFSET=%FS_SECTOR%*512
 set /a KERN_OFFSET=%KERNEL_SECTOR%*512
 
-set "PS1=%TEMP%\claudeos_build.ps1"
+set "PS1=%TEMP%\natureos_build.ps1"
 (
     echo $flat   = New-Object byte[] ^(%FLAT_BYTES%^)
     echo $boot   = [IO.File]::ReadAllBytes^('build\boot.bin'^)
@@ -85,9 +85,10 @@ set "PS1=%TEMP%\claudeos_build.ps1"
     echo [Array]::Copy^($stage2, 0, $flat,           512, $stage2.Length^)
     echo [Array]::Copy^($kern,   0, $flat, %KERN_OFFSET%, $kern.Length^)
     echo [Array]::Copy^($fs,     0, $flat,   %FS_OFFSET%, $fs.Length^)
-    echo [IO.File]::WriteAllBytes^('build\claudeos_flat.img', $flat^)
-    echo Write-Host ' OK  claudeos_flat.img'
+    echo [IO.File]::WriteAllBytes^('build\natureos_flat.img', $flat^)
+    echo Write-Host ' OK  natureos_flat.img'
 ) > "%PS1%"
+
 powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%"
 del "%PS1%" >nul 2>&1
 if errorlevel 1 ( echo FAILED: flat image creation & exit /b 1 )
@@ -98,8 +99,9 @@ if errorlevel 1 ( echo FAILED: mkiso.py & exit /b 1 )
 
 echo.
 echo ================================
-echo   claudeos.iso built!
+echo   natureos.iso built!
 echo ================================
+
 echo.
 echo   Boot paths supported:
 echo     CD/DVD  -^> El Torito no-emulation
@@ -111,8 +113,8 @@ if /i "%~1"=="run" goto :run
 exit /b 0
 
 :run
-"D:\Program Files\qemu\qemu-system-x86_64" ^
-  -cdrom claudeos.iso ^
+  qemu-system-x86_64 ^
+  -cdrom natureos.iso ^
   -drive format=raw,file=data.img,if=ide,index=3 ^
   -boot d ^
   -m 256M ^
@@ -124,9 +126,10 @@ exit /b 0
   -machine pcspk-audiodev=snd ^
   -nic user,model=e1000 ^
   -display sdl,window-close=on ^
-  -name "ClaudeOS" ^
+  -name "NatureOS" ^
   -serial stdio ^
   -no-reboot
+
 exit /b 0
 
 :clean
@@ -135,8 +138,9 @@ if exist build\boot.bin          del /q build\boot.bin
 if exist build\stage2.bin        del /q build\stage2.bin
 if exist build\kernel.bin        del /q build\kernel.bin
 if exist build\fs.bin            del /q build\fs.bin
-if exist build\claudeos_flat.img del /q build\claudeos_flat.img
-if exist claudeos.iso            del /q claudeos.iso
+if exist build\natureos_flat.img del /q build\natureos_flat.img
+if exist natureos.iso            del /q natureos.iso
 if exist build                   rd build
+
 echo Done.
 exit /b 0

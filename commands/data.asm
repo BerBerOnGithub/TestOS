@@ -8,9 +8,9 @@
 ; -
 str_mnu_top:      db 201, 205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205, 187, 0 ; 50 '='
 
-str_mnu_title:    db '                NatureOS Boot Menu                ', 0 ; 50 chars
+str_mnu_title:    db '                ', OS_NAME, ' Boot Menu                ', 0 ; 50 chars
 
-str_mnu_sub:      db '           NatureOS v2.0  ', 7, '  Build 2.0.0          ', 0 ; 50 chars
+str_mnu_sub:      db '           ', OS_NAME, ' v', OS_VERSION, '  ', 7, '  Build ', OS_BUILD, '          ', 0 ; 50 chars
 str_mnu_sep:      db 204, 205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205,205, 185, 0 ; 50 '='
 
 str_mnu_blank:    db '                                                  ', 0 ; 50 spaces
@@ -37,7 +37,7 @@ str_mnu_shadow_bot: db 219, 219,219,219,219,219,219,219,219,219,219,219,219,219,
 str_mnu_hint:
     db '            arrows/1/2/3 select.  Enter = boot            ', 0
 
-str_mt_title:    db ' *** NatureOS Memory Tester v1.0 ***', 0
+str_mt_title:    db ' *** ', OS_NAME, ' Memory Tester v1.0 ***', 0
 str_mt_test:     db ' Running Test: ', 0
 str_mt_t0:       db '#0 [Address: Walking 1s] ', 0
 str_mt_t1:       db '#1 [Address: Own Addr]   ', 0
@@ -86,7 +86,7 @@ mt_ram_size:     dd 0x04000000 ; Limit in bytes (default 64MB)
 ; -
 str_prompt_a:    db 'root', 0
 str_prompt_b:    db '@', 0
-str_prompt_c:    db 'NatureOS:~', 0
+str_prompt_c:    db OS_NAME, ':~', 0
 str_prompt_d:    db '# ', 0
 
 ; -
@@ -182,10 +182,9 @@ str_color_usage: db ' Usage: color [XX]  e.g. color 0a  color 0f  color 1e', 13,
 str_fortune_hdr: db ' "', 0
 
 str_colors_hdr:  db ' VGA Color Table (bg=black)', 0
-str_clr_sample:  db '  NatureOS v2.0  ', 0
+str_clr_sample:  db '  ', OS_NAME, ' v', OS_VERSION, '  ', 0
 
 str_sys_hdr:     db ' System Information', 13, 10
-                 db ' -', 13, 10, 0
 str_sys_sep:     db ' -', 13, 10, 0
 str_sys_os:      db ' OS:      ', 0
 str_sys_arch:    db ' Arch:    ', 0
@@ -195,7 +194,7 @@ str_sys_time:    db ' Time:    ', 0
 str_sys_up:      db ' Uptime:  ~', 0
 str_sys_kern:    db ' Kernel:  ', 0
 str_sys_color:   db ' Color:   0x', 0
-str_ver_short:   db 'NatureOS 2.0.0-stable', 0
+str_ver_short:   db OS_VER_SHORT, 0
 
 str_guess_intro:  db 13, 10
                   db ' Guess the Number!', 13, 10
@@ -217,7 +216,7 @@ str_ascii_hdr:   db ' ASCII Table (32-126)', 13, 10, 0
 str_help_pg1:
     db 13, 10
     db ' +----------------------------+--------------------------------+', 13, 10
-    db ' |      NatureOS v2.0         |  Command Reference  (1 of 2)  |', 13, 10
+    db ' |      ', OS_NAME, ' v', OS_VERSION, '         |  Command Reference  (1 of 2)  |', 13, 10
     db ' +----------------------------+--------------------------------+', 13, 10
     db ' | help                       | this screen (paged)           |', 13, 10
     db ' | echo <text>                | print text to screen          |', 13, 10
@@ -244,7 +243,7 @@ str_help_more:
 str_help_pg2:
     db 13, 10
     db ' +----------------------------+--------------------------------+', 13, 10
-    db ' |      NatureOS v2.0         |  Command Reference  (2 of 2)  |', 13, 10
+    db ' |      ', OS_NAME, ' v', OS_VERSION, '         |  Command Reference  (2 of 2)  |', 13, 10
     db ' +----------------------------+--------------------------------+', 13, 10
     db ' | sys                        | full system snapshot          |', 13, 10
     db ' | date                       | show RTC date                 |', 13, 10
@@ -254,8 +253,9 @@ str_help_pg2:
     db ' | guess                      | number guessing game (1-100)  |', 13, 10
     db ' | colors                     | show all 16 colour swatches   |', 13, 10
     db ' | ls                         | list filesystem files         |', 13, 10
-    db ' | run <name>                 | run an app from ClaudeFS      |', 13, 10
+    db ' | run <name>                 | run an app from ', FS_NAME, '      |', 13, 10
     db ' | probe                      | verify you are in real mode   |', 13, 10
+
     db ' | drivers                    | show loaded RM drivers        |', 13, 10
     db ' | pm                         | switch to 32-bit prot. mode   |', 13, 10
     db ' +----------------------------+--------------------------------+', 13, 10
@@ -267,15 +267,15 @@ str_help_pg2:
 ; -
 str_ver_text:
     db 13, 10
-    db ' NatureOS version 2.0', 13, 10
-    db ' Kernel:       1.0.0-stable (real mode)', 13, 10
-    db ' Architecture: x86 16-bit', 13, 10
-    db ' Build date:   2026-02-28', 13, 10
-    db ' Author:       Claude (Anthropic)', 13, 10
+    db ' ', OS_VER_TEXT, 13, 10
+    db ' Kernel:       ', KERNEL_VER, ' (real mode)', 13, 10
+    db ' Architecture: ', OS_ARCH_RM, 13, 10
+    db ' Build date:   ', OS_BUILD_DATE, 13, 10
+    db ' Author:       ', OS_AUTHOR, 13, 10
     db 13, 10
     db 0
 
-str_uname_text:  db 'NatureOS 1.0.0-stable x86 real-mode', 0
+str_uname_text:  db OS_NAME, ' ', KERNEL_VER, ' x86 real-mode', 0
 str_whoami_text: db 'root', 0
 
 ; -
@@ -288,8 +288,9 @@ str_mem_text:
     db ' 0x00400-0x004FF BDA', 13, 10
     db ' 0x00500-0x07BFF Stack/Free', 13, 10
     db ' 0x07C00-0x07DFF Bootloader', 13, 10
-    db ' 0x08000-0x17FFF NatureOS Kernel', 13, 10
+    db ' 0x08000-0x17FFF ', OS_NAME, ' Kernel', 13, 10
     db ' 0x0C000-0x9FFFF Conv.RAM', 13, 10
+
     db ' 0xB8000-0xBFFFF VGA Buffer', 13, 10
     db ' 0xC0000-0xFFFFF ROM/BIOS', 13, 10
     db 13, 10
@@ -300,7 +301,7 @@ str_mem_text:
 ; -
 str_hello_out:
     db 13, 10
-    db '  Hello World from NatureOS v2.0', 13, 10
+    db '  Hello World from ', OS_NAME, ' v', OS_VERSION, 13, 10
     db '  Booted on bare metal. No OS beneath us.', 13, 10
     db 13, 10
     db 0
@@ -318,7 +319,7 @@ str_banner:
     db '     ', 219,219,186, ' ', 200,219,219,219,219,186, 219,219,186, '  ', 219,219,186, '   ', 219,219,186, '   ', 200,219,219,219,219,219,219,201,188, 219,219,186, '  ', 219,219,186, 219,219,219,219,219,219,219,187, 200,219,219,219,219,219,219,201,188, 219,219,219,219,219,219,219,186, 13, 10
     db '     ', 200,205,188, '  ', 200,205,205,205,188, 200,205,188, '  ', 200,205,188, '   ', 200,205,188, '    ', 200,205,205,205,205,205,188, ' ', 200,205,188, '  ', 200,205,188, 200,205,205,205,205,205,205,188, ' ', 200,205,205,205,205,205,188, ' ', 200,205,205,205,205,205,205,188, 13, 10
     db 13, 10
-    db '                              v2.0  |  Real-Mode x86  |  2026', 13, 10
+    db '                              v', OS_VERSION, '  |  Real-Mode x86  |  2026', 13, 10
     db 0
 
 ; -
@@ -326,7 +327,7 @@ str_banner:
 ; -
 str_motd:
     db 13, 10
-    db ' Welcome to NatureOS v2.0.  Type "help" for commands.', 13, 10
+    db ' Welcome to ', OS_NAME, ' v', OS_VERSION, '.  Type "help" for commands.', 13, 10
     db 13, 10
     db 0
 

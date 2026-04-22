@@ -3,103 +3,321 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NatureOS v2.0</title>
+  <title>NatureOS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg:        #0a0f0c;
+      --bg2:       #0e1510;
+      --bg3:       #111a14;
+      --border:    #1a2e20;
+      --border2:   #243d2a;
+      --green:     #4ade80;
+      --green-dim: #52b788;
+      --green-mute:#2d6a4f;
+      --text:      #d1fae5;
+      --text-dim:  #6ee7b7;
+      --text-mute: #4ade8066;
+      --mono:      'JetBrains Mono', monospace;
+      --sans:      'Syne', sans-serif;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0d1117; color: #c9d1d9; line-height: 1.6; }
-    a { color: #52b788; text-decoration: none; }
-    a:hover { text-decoration: underline; }
+    html { scroll-behavior: smooth; }
 
-    header { background: #111a16; border-bottom: 1px solid #1b3a2a; padding: 60px 24px 50px; text-align: center; }
-    .logo-wrap { display: flex; justify-content: center; margin-bottom: 28px; }
-    .logo-wrap img { width: 100%; max-width: 520px; height: auto; }
-    header p { margin: 0 auto; max-width: 600px; font-size: 1.05rem; color: #6a9f7e; }
-    .badges { margin-top: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-    .badge { background: #161f1a; border: 1px solid #1b3a2a; border-radius: 20px; padding: 4px 14px; font-size: 0.82rem; color: #6a9f7e; }
-    .badge span { color: #52b788; }
+    body {
+      font-family: var(--sans);
+      background: var(--bg);
+      color: var(--text-dim);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
 
-    main { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
-    section { margin-bottom: 52px; }
-    h2 { font-size: 1.3rem; font-weight: 600; color: #d8f3dc; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #1b3a2a; }
-    p { color: #6a9f7e; margin-bottom: 10px; }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);
+      pointer-events: none;
+      z-index: 9999;
+    }
 
-    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
-    .card { background: #111a16; border: 1px solid #1b3a2a; border-radius: 8px; padding: 18px; }
-    .card .icon { font-size: 1.4rem; margin-bottom: 8px; }
-    .card h3 { font-size: 0.95rem; color: #d8f3dc; margin-bottom: 4px; }
-    .card p { font-size: 0.85rem; margin: 0; }
+    a { color: var(--green-dim); text-decoration: none; }
+    a:hover { color: var(--green); text-decoration: underline; }
 
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    th { text-align: left; padding: 8px 12px; color: #52b788; font-weight: 500; border-bottom: 1px solid #1b3a2a; }
-    td { padding: 8px 12px; border-bottom: 1px solid #161f1a; color: #c9d1d9; vertical-align: top; }
+    /* NAV */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(10,15,12,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; height: 52px;
+    }
+    .nav-brand { font-family: var(--mono); font-size: 0.9rem; color: var(--green); display: flex; align-items: center; gap: 8px; }
+    .nav-brand::before { content: '❯'; opacity: 0.5; font-size: 0.75rem; }
+    .nav-links { display: flex; gap: 28px; }
+    .nav-links a { font-size: 0.82rem; color: var(--text-dim); letter-spacing: 0.04em; }
+    .nav-links a:hover { color: var(--green); text-decoration: none; }
+    .nav-ver {
+      font-family: var(--mono); font-size: 0.75rem; color: var(--green-mute);
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 4px; padding: 2px 10px;
+    }
+
+    /* HERO */
+    header { position: relative; padding: 100px 24px 80px; text-align: center; overflow: hidden; }
+    header::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 50% 0%, rgba(74,222,128,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 40% at 20% 80%, rgba(52,183,120,0.04) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .hero-grid {
+      position: absolute; inset: 0;
+      background-image: linear-gradient(var(--border) 1px,transparent 1px), linear-gradient(90deg,var(--border) 1px,transparent 1px);
+      background-size: 40px 40px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 0%,black 30%,transparent 80%);
+      opacity: 0.4;
+    }
+    .hero-inner { position: relative; max-width: 720px; margin: 0 auto; }
+    .hero-tag {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--mono); font-size: 0.75rem; color: var(--green-mute);
+      border: 1px solid var(--border2); border-radius: 20px;
+      padding: 4px 14px; margin-bottom: 32px; background: var(--bg3);
+    }
+    .hero-tag .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    h1 {
+      font-family: var(--sans); font-size: clamp(3rem,8vw,5.5rem);
+      font-weight: 800; color: var(--text); letter-spacing: -0.03em;
+      line-height: 1.0; margin-bottom: 8px;
+    }
+    .hero-ver { font-family: var(--mono); font-size: clamp(1rem,2.5vw,1.4rem); color: var(--green); opacity: 0.7; margin-bottom: 24px; letter-spacing: 0.05em; }
+    header p { font-size: 1rem; color: var(--text-dim); max-width: 520px; margin: 0 auto 36px; opacity: 0.8; }
+
+    .badges { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+    .badge { background: var(--bg3); border: 1px solid var(--border2); border-radius: 4px; padding: 4px 12px; font-family: var(--mono); font-size: 0.76rem; color: var(--green-mute); }
+    .badge span { color: var(--green); }
+
+    /* VERSION BANNER */
+    .version-banner { background: var(--bg2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 28px 24px; }
+    .version-inner { max-width: 900px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 0; }
+    .ver-stat { padding: 12px 24px; border-right: 1px solid var(--border); }
+    .ver-stat:last-child { border-right: none; }
+    .ver-stat-label { font-family: var(--mono); font-size: 0.7rem; color: var(--green-mute); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+    .ver-stat-value { font-family: var(--mono); font-size: 0.95rem; color: var(--green); }
+    .channel-alpha { display: inline-block; background: rgba(74,222,128,0.08); border: 1px solid var(--border2); border-radius: 3px; padding: 1px 8px; font-size: 0.78rem; color: var(--green-dim); }
+
+    /* MAIN */
+    main { max-width: 900px; margin: 0 auto; padding: 56px 24px; }
+    section { margin-bottom: 64px; }
+
+    h2 {
+      font-family: var(--sans); font-size: 1.1rem; font-weight: 600; color: var(--text);
+      margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 10px;
+    }
+    h2 .section-num { font-family: var(--mono); font-size: 0.72rem; color: var(--green-mute); border: 1px solid var(--border); border-radius: 3px; padding: 1px 7px; }
+
+    p { color: var(--text-dim); margin-bottom: 10px; font-size: 0.95rem; }
+
+    /* CHANGELOG */
+    .changelog { display: flex; flex-direction: column; gap: 0; }
+    .cl-entry { display: grid; grid-template-columns: 120px 1fr; gap: 0 24px; padding: 20px 0; border-bottom: 1px solid var(--border); position: relative; }
+    .cl-entry:last-child { border-bottom: none; }
+    .cl-entry::before { content: ''; position: absolute; left: 106px; top: 0; bottom: 0; width: 1px; background: var(--border); }
+    .cl-entry::after { content: ''; position: absolute; left: 102px; top: 28px; width: 9px; height: 9px; border-radius: 50%; background: var(--green-mute); border: 2px solid var(--bg); }
+    .cl-meta { padding-right: 16px; text-align: right; }
+    .cl-ver { font-family: var(--mono); font-size: 0.85rem; color: var(--green); display: block; margin-bottom: 4px; }
+    .cl-date { font-family: var(--mono); font-size: 0.72rem; color: var(--green-mute); }
+    .cl-body h3 { font-size: 0.9rem; color: var(--text); margin-bottom: 8px; font-weight: 600; }
+    .cl-items { list-style: none; display: flex; flex-direction: column; gap: 4px; }
+    .cl-items li { font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); display: flex; align-items: baseline; gap: 8px; }
+    .cl-items li::before { content: '+'; color: var(--green); flex-shrink: 0; }
+    .cl-items li.fix::before { content: '~'; color: var(--green-dim); }
+    .cl-items li.break::before { content: '!'; color: #f87171; }
+    .tag-new,.tag-fix,.tag-break { font-size: 0.65rem; border-radius: 3px; padding: 1px 5px; font-family: var(--mono); flex-shrink: 0; }
+    .tag-new { background: rgba(74,222,128,0.1); color: var(--green); border: 1px solid var(--border2); }
+    .tag-fix { background: rgba(251,191,36,0.08); color: #fbbf24; border: 1px solid #3d3000; }
+    .tag-break { background: rgba(248,113,113,0.08); color: #f87171; border: 1px solid #3d1515; }
+
+    /* RELEASE BODY MARKDOWN RENDERED */
+    .release-body { font-family: var(--mono); font-size: 0.8rem; color: var(--text-dim); margin-top: 10px; line-height: 1.7; }
+    .release-body p { font-family: var(--mono); font-size: 0.8rem; margin-bottom: 6px; }
+    .release-body ul { list-style: none; display: flex; flex-direction: column; gap: 4px; padding: 0; }
+    .release-body ul li { display: flex; align-items: baseline; gap: 8px; }
+    .release-body ul li::before { content: '+'; color: var(--green); flex-shrink: 0; }
+    .release-body code { font-family: var(--mono); background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; font-size: 0.78em; color: var(--green-dim); }
+    .release-body h1,.release-body h2,.release-body h3,.release-body h4 { color: var(--text); font-size: 0.85rem; margin: 10px 0 6px; font-family: var(--sans); }
+    .release-body a { color: var(--green-dim); }
+    .release-body strong { color: var(--text); }
+
+    /* CARDS */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 12px; }
+    .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 20px; transition: border-color 0.2s; }
+    .card:hover { border-color: var(--border2); }
+    .card .icon { font-size: 1.3rem; margin-bottom: 10px; }
+    .card h3 { font-size: 0.88rem; color: var(--text); margin-bottom: 6px; font-weight: 600; }
+    .card p { font-size: 0.82rem; margin: 0; }
+
+    /* TABLE */
+    table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+    th { text-align: left; padding: 8px 12px; color: var(--green-dim); font-weight: 500; border-bottom: 1px solid var(--border2); font-family: var(--mono); font-size: 0.78rem; }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text-dim); vertical-align: top; }
     tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(74,222,128,0.02); }
 
-    code { font-family: 'Consolas', 'SFMono-Regular', monospace; background: #161f1a; border: 1px solid #1b3a2a; border-radius: 4px; padding: 1px 6px; font-size: 0.85em; color: #74c69d; }
-    pre { background: #111a16; border: 1px solid #1b3a2a; border-radius: 8px; padding: 18px 20px; overflow-x: auto; font-size: 0.87rem; line-height: 1.7; }
-    pre code { background: none; border: none; padding: 0; color: #d8f3dc; font-size: inherit; }
+    /* CODE */
+    code { font-family: var(--mono); background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px; font-size: 0.82em; color: var(--green-dim); }
+    pre { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 20px; overflow-x: auto; font-size: 0.84rem; line-height: 1.75; position: relative; }
+    pre::before { content: attr(data-label); position: absolute; top: 10px; right: 14px; font-family: var(--mono); font-size: 0.68rem; color: var(--green-mute); letter-spacing: 0.08em; }
+    pre code { background: none; border: none; padding: 0; color: var(--text); font-size: inherit; }
 
-    .net-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
-    .net-item { background: #111a16; border: 1px solid #1b3a2a; border-radius: 6px; padding: 12px 14px; display: flex; align-items: center; gap: 8px; font-size: 0.88rem; color: #c9d1d9; }
-    .dot-green { width: 8px; height: 8px; border-radius: 50%; background: #52b788; flex-shrink: 0; }
-    .dot-planned { width: 8px; height: 8px; border-radius: 50%; background: transparent; border: 2px solid #52b788; flex-shrink: 0; }
+    /* NET GRID */
+    .net-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(140px,1fr)); gap: 8px; }
+    .net-item { background: var(--bg2); border: 1px solid var(--border); border-radius: 5px; padding: 10px 14px; display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 0.82rem; color: var(--text-dim); }
+    .dot-green { width: 7px; height: 7px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+    .dot-planned { width: 7px; height: 7px; border-radius: 50%; background: transparent; border: 2px solid var(--green-mute); flex-shrink: 0; }
 
-    .planned { display: inline-block; font-size: 0.72rem; font-family: 'Consolas', monospace; background: #161f1a; border: 1px solid #2d6a4f; color: #52b788; border-radius: 4px; padding: 1px 6px; vertical-align: middle; margin-left: 4px; }
-
+    /* TWO COL */
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    .col-label { font-size: 0.9rem; color: #d8f3dc; margin-bottom: 10px; }
-    @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+    .col-label { font-family: var(--mono); font-size: 0.78rem; color: var(--green-mute); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+    @media (max-width: 600px) {
+      .two-col { grid-template-columns: 1fr; }
+      .cl-entry { grid-template-columns: 1fr; }
+      .cl-entry::before,.cl-entry::after { display: none; }
+      .cl-meta { text-align: left; margin-bottom: 8px; }
+    }
 
-    footer { text-align: center; padding: 32px 24px; border-top: 1px solid #1b3a2a; color: #2d6a4f; font-size: 0.85rem; }
+    .planned { display: inline-block; font-size: 0.68rem; font-family: var(--mono); background: var(--bg3); border: 1px solid var(--border2); color: var(--green-mute); border-radius: 3px; padding: 1px 6px; vertical-align: middle; margin-left: 4px; }
+
+    /* LOADING / ERROR STATES */
+    .loading-block {
+      display: flex; align-items: center; gap: 10px;
+      font-family: var(--mono); font-size: 0.82rem; color: var(--green-mute);
+      padding: 24px 0;
+    }
+    .loading-block .spinner {
+      width: 14px; height: 14px; border: 2px solid var(--border2);
+      border-top-color: var(--green-mute); border-radius: 50%;
+      animation: spin 0.8s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error-block { font-family: var(--mono); font-size: 0.82rem; color: #f87171; padding: 16px 0; display: flex; align-items: center; gap: 8px; }
+    .error-block::before { content: '!'; color: #f87171; }
+
+    /* README section */
+    .readme-content { font-size: 0.9rem; line-height: 1.8; }
+    .readme-content h1,.readme-content h2,.readme-content h3 { color: var(--text); font-family: var(--sans); margin: 20px 0 10px; font-size: 1rem; font-weight: 600; }
+    .readme-content p { color: var(--text-dim); margin-bottom: 10px; }
+    .readme-content code { font-family: var(--mono); background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px; font-size: 0.82em; color: var(--green-dim); }
+    .readme-content pre { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 20px; overflow-x: auto; font-size: 0.84rem; line-height: 1.75; margin-bottom: 16px; }
+    .readme-content pre code { background: none; border: none; padding: 0; color: var(--text); }
+    .readme-content ul,.readme-content ol { padding-left: 20px; margin-bottom: 10px; }
+    .readme-content li { color: var(--text-dim); margin-bottom: 4px; font-size: 0.9rem; }
+    .readme-content a { color: var(--green-dim); }
+    .readme-content table { margin-bottom: 16px; }
+    .readme-content blockquote { border-left: 2px solid var(--border2); padding-left: 16px; margin: 10px 0; color: var(--green-mute); font-style: italic; }
+    .readme-content img { max-width: 100%; border-radius: 6px; border: 1px solid var(--border); }
+
+    /* FOOTER */
+    footer { text-align: center; padding: 40px 24px; border-top: 1px solid var(--border); font-family: var(--mono); font-size: 0.78rem; color: var(--green-mute); display: flex; flex-direction: column; gap: 8px; align-items: center; }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { color: var(--green-mute); font-size: 0.78rem; }
+    .footer-links a:hover { color: var(--green-dim); text-decoration: none; }
   </style>
 </head>
 <body>
 
-<header>
-  <div class="logo-wrap">
-    <img src="logo.svg" alt="NatureOS logo" />
+<nav>
+  <div class="nav-brand">NatureOS</div>
+  <div class="nav-links">
+    <a href="#changelog">Changelog</a>
+    <a href="#start">Getting Started</a>
+    <a href="#commands">Commands</a>
+    <a href="#network">Network</a>
   </div>
-  <p>A real bootable x86 operating system written in pure assembly.
-     No OS, no runtime, no libraries. Just hardware.</p>
-  <div class="badges">
-    <div class="badge"><span>x86</span> Assembly</div>
-    <div class="badge"><span>32-bit</span> Protected Mode</div>
-    <div class="badge"><span>640×480</span> VBE Graphics</div>
-    <div class="badge"><span>ISO</span> Bootable</div>
+  <div class="nav-ver" id="nav-ver">v—</div>
+</nav>
+
+<header>
+  <div class="hero-grid"></div>
+  <div class="hero-inner">
+    <div class="hero-tag">
+      <div class="dot"></div>
+      Pre-alpha · x86 Assembly · Bare metal
+    </div>
+    <h1>NatureOS</h1>
+    <div class="hero-ver" id="hero-ver">loading…</div>
+    <p id="hero-desc">A real bootable x86 operating system written in pure assembly. No OS, no runtime, no libraries. Just hardware.</p>
+    <div class="badges">
+      <div class="badge"><span>x86</span> Assembly</div>
+      <div class="badge"><span>32-bit</span> Protected Mode</div>
+      <div class="badge"><span>640×480</span> VBE Graphics</div>
+      <div class="badge"><span>ISO</span> Bootable</div>
+      <div class="badge"><span>NatureFS</span> Filesystem</div>
+      <div class="badge"><span>TCP/IP</span> Network Stack</div>
+    </div>
   </div>
 </header>
+
+<div class="version-banner">
+  <div class="version-inner" id="version-inner">
+    <div class="ver-stat">
+      <div class="ver-stat-label">Version</div>
+      <div class="ver-stat-value" id="stat-version">—</div>
+    </div>
+    <div class="ver-stat">
+      <div class="ver-stat-label">Channel</div>
+      <div class="ver-stat-value"><span class="channel-alpha" id="stat-channel">alpha</span></div>
+    </div>
+    <div class="ver-stat">
+      <div class="ver-stat-label">Released</div>
+      <div class="ver-stat-value" id="stat-released">—</div>
+    </div>
+    <div class="ver-stat">
+      <div class="ver-stat-label">Stars</div>
+      <div class="ver-stat-value" id="stat-stars">—</div>
+    </div>
+    <div class="ver-stat">
+      <div class="ver-stat-label">Open issues</div>
+      <div class="ver-stat-value" id="stat-issues">—</div>
+    </div>
+    <div class="ver-stat">
+      <div class="ver-stat-label">Releases</div>
+      <div class="ver-stat-value" id="stat-releases">—</div>
+    </div>
+  </div>
+</div>
 
 <main>
 
   <section>
-    <h2>What is NatureOS?</h2>
+    <h2><span class="section-num">01</span> What is NatureOS?</h2>
     <p>NatureOS runs directly on the CPU — from a 512-byte MBR bootloader all the way up to a graphical windowed desktop with a mouse, a terminal, a file browser, and a working network stack.</p>
     <p>Every line is handwritten x86 assembly. BIOS calls handle early boot; bare-metal hardware drivers handle everything else.</p>
     <div class="cards" style="margin-top: 20px;">
-      <div class="card">
-        <div class="icon">🖥️</div>
-        <h3>Real-Mode Shell</h3>
-        <p>Classic text shell with BIOS access and filesystem commands.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🪟</div>
-        <h3>GUI Desktop</h3>
-        <p>Window manager, draggable windows, taskbar, and desktop icons.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🖱️</div>
-        <h3>Mouse Support</h3>
-        <p>Full PS/2 mouse driver with cursor rendering.</p>
-      </div>
-      <div class="card">
-        <div class="icon">🌐</div>
-        <h3>Network Stack</h3>
-        <p>PCI → e1000 NIC → Ethernet → ARP → IP → ICMP → UDP → DNS.</p>
-      </div>
+      <div class="card"><div class="icon">🖥️</div><h3>Real-Mode Shell</h3><p>Classic text shell with BIOS access and filesystem commands.</p></div>
+      <div class="card"><div class="icon">🪟</div><h3>GUI Desktop</h3><p>Window manager, draggable windows, taskbar, and desktop icons.</p></div>
+      <div class="card"><div class="icon">🖱️</div><h3>Mouse Support</h3><p>Full PS/2 mouse driver with cursor rendering.</p></div>
+      <div class="card"><div class="icon">🌐</div><h3>Network Stack</h3><p>PCI → e1000 → Ethernet → ARP → IP → ICMP → UDP → DNS → TCP → HTTP.</p></div>
     </div>
   </section>
 
-  <section>
-    <h2>Getting Started</h2>
+  <section id="changelog">
+    <h2><span class="section-num">02</span> Changelog</h2>
+    <div id="changelog-container">
+      <div class="loading-block"><div class="spinner"></div>Fetching releases from GitHub…</div>
+    </div>
+  </section>
+
+  <section id="start">
+    <h2><span class="section-num">03</span> Getting Started</h2>
     <p style="margin-bottom: 14px;">You need three tools:</p>
     <table>
       <tr><th>Tool</th><th>Download</th></tr>
@@ -108,12 +326,12 @@
       <tr><td>QEMU</td><td><a href="https://www.qemu.org/download/#windows">qemu.org</a></td></tr>
     </table>
     <p style="margin-top: 18px; margin-bottom: 10px;">One-time Python dependency:</p>
-    <pre><code>pip install pycdlib</code></pre>
+    <pre data-label="SHELL"><code>pip install pycdlib</code></pre>
     <p style="margin-top: 18px; margin-bottom: 10px;">Build and run:</p>
-    <pre><code>build.bat        # build natureos.iso
+    <pre data-label="SHELL"><code>build.bat        # build natureos.iso
 build.bat run    # build + launch in QEMU</code></pre>
     <p style="margin-top: 18px; margin-bottom: 10px;">Or launch QEMU manually:</p>
-    <pre><code>qemu-system-x86_64 \
+    <pre data-label="QEMU"><code>qemu-system-x86_64 \
   -cdrom natureos.iso \
   -drive format=raw,file=data.img,if=ide,index=3 \
   -boot d -m 64M -cpu qemu64 -smp 1 \
@@ -124,8 +342,8 @@ build.bat run    # build + launch in QEMU</code></pre>
     <p style="font-size: 0.85rem; margin-top: 8px;">Linux/macOS: replace <code>driver=dsound</code> with <code>driver=pa</code> or <code>driver=alsa</code>.</p>
   </section>
 
-  <section>
-    <h2>Commands</h2>
+  <section id="commands">
+    <h2><span class="section-num">04</span> Commands</h2>
     <div class="two-col">
       <div>
         <p class="col-label">Real-Mode Shell</p>
@@ -164,9 +382,9 @@ build.bat run    # build + launch in QEMU</code></pre>
     </div>
   </section>
 
-  <section>
-    <h2>Network Stack</h2>
-    <p style="margin-bottom: 14px;">Full network stack written in assembly — filled dot = done, outlined = planned.</p>
+  <section id="network">
+    <h2><span class="section-num">05</span> Network Stack</h2>
+    <p style="margin-bottom: 14px;">Full network stack written in assembly — filled dot = implemented, outlined = planned.</p>
     <div class="net-grid">
       <div class="net-item"><div class="dot-green"></div> PCI</div>
       <div class="net-item"><div class="dot-green"></div> e1000 NIC</div>
@@ -182,56 +400,214 @@ build.bat run    # build + launch in QEMU</code></pre>
   </section>
 
   <section>
-    <h2>Planned Features <span class="planned">roadmap</span></h2>
+    <h2><span class="section-num">06</span> Planned Features</h2>
     <table>
       <tr><th>Feature</th><th>Notes</th></tr>
-      <tr>
-        <td>Text editor <span class="planned">planned</span></td>
-        <td>Basic in-desktop editor for files on the writable data disk.</td>
-      </tr>
-      <tr>
-        <td>PM audio driver <span class="planned">planned</span></td>
-        <td>PC speaker works in real mode (<code>beep</code>). A full protected-mode audio driver is on the roadmap.</td>
-      </tr>
-      <tr>
-        <td>More apps <span class="planned">planned</span></td>
-        <td>The app SDK (<code>sdk.asm</code>) is already in place — more assembly apps are planned.</td>
-      </tr>
+      <tr><td>Text editor <span class="planned">planned</span></td><td>Basic in-desktop editor for files on the writable data disk.</td></tr>
+      <tr><td>PM audio driver <span class="planned">planned</span></td><td>PC speaker works in real mode (<code>beep</code>). A full protected-mode audio driver is on the roadmap.</td></tr>
+      <tr><td>More apps <span class="planned">planned</span></td><td>The app SDK (<code>sdk.asm</code>) is already in place — more assembly apps are planned.</td></tr>
     </table>
   </section>
 
-  <section>
-    <h2>How It Works</h2>
-    <p>The BIOS loads <code>boot.asm</code> (512 bytes) at <code>0x7C00</code>. Stage 2 uses INT 13h LBA reads to load the kernel and filesystem into memory.</p>
-    <p>The kernel initialises real-mode drivers and drops into a command shell. Typing <code>pm</code> switches to 32-bit protected mode: GDT loaded, <code>CR0.PE=1</code>, far jump to <code>pm_entry</code>. VBE graphics (640×480, 8bpp), the PS/2 mouse driver, and the graphical desktop start up.</p>
-    <p style="margin-top: 14px; margin-bottom: 10px;">Project layout:</p>
-    <pre><code>natureos/
-├── boot.asm          512-byte MBR bootloader
-├── stage2.asm        Stage 2 loader
-├── kernel.asm        Kernel entry + includes
-├── sdk.asm           App SDK (syscall macros)
-├── apps/             Files packed into the filesystem
-├── core/             Real-mode hardware abstractions
-├── shell/            Real-mode shell
-├── commands/         Real-mode commands
-└── pm/               32-bit protected mode
-    ├── wm.asm        Window manager
-    ├── terminal.asm  Terminal emulator
-    ├── gfx.asm       Framebuffer primitives
-    ├── mouse.asm     PS/2 mouse driver
-    └── net/          Network stack (PCI → DNS)</code></pre>
-  </section>
-
-  <section>
-    <h2>Custom Wallpaper</h2>
-    <p>Drop a file named <code>wallpaper.bmp</code> into the <code>apps/</code> folder before building. Requirements: BMP format, 8-bit indexed (256 colour), exactly 640×480 pixels.</p>
+  <section id="readme">
+    <h2><span class="section-num">07</span> README</h2>
+    <div id="readme-container">
+      <div class="loading-block"><div class="spinner"></div>Fetching README from GitHub…</div>
+    </div>
   </section>
 
 </main>
 
 <footer>
-  NatureOS v2.0 — written in pure x86 assembly
+  <div id="footer-text">NatureOS — written in pure x86 assembly — <a href="https://github.com/BerBerOnGithub/NatureOS" target="_blank">BerBerOnGithub/NatureOS</a></div>
+  <div class="footer-links">
+    <a href="#changelog">Changelog</a>
+    <a href="#start">Getting Started</a>
+    <a href="#network">Network Stack</a>
+    <a href="https://github.com/BerBerOnGithub/NatureOS" target="_blank">GitHub ↗</a>
+  </div>
 </footer>
 
+<script>
+const REPO = 'BerBerOnGithub/NatureOS';
+const API  = 'https://api.github.com/repos/' + REPO;
+
+/* ── simple markdown → HTML (enough for release notes + README) ── */
+function mdToHtml(md) {
+  if (!md) return '';
+  let html = md
+    // fenced code blocks
+    .replace(/```[\w]*\n([\s\S]*?)```/g, (_,c) => '<pre><code>' + esc(c.trim()) + '</code></pre>')
+    // inline code
+    .replace(/`([^`]+)`/g, (_,c) => '<code>' + esc(c) + '</code>')
+    // headings
+    .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+    .replace(/^### (.+)$/gm,  '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,   '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm,    '<h1>$1</h1>')
+    // horizontal rule
+    .replace(/^[-*_]{3,}$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:16px 0">')
+    // bold & italic
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g,     '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,         '<em>$1</em>')
+    // images
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">')
+    // links
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+    // unordered lists (handles - and *)
+    .replace(/^\s*[-*+] (.+)$/gm, '<li>$1</li>')
+    // ordered lists
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+    // blockquote
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    // wrap adjacent <li> items in <ul>
+    .replace(/(<li>[\s\S]*?<\/li>)(\s*(?:<li>[\s\S]*?<\/li>)*)/g, (m) => '<ul>' + m + '</ul>');
+
+  // paragraphs: wrap lines not already in a block tag
+  html = html.split(/\n{2,}/).map(block => {
+    block = block.trim();
+    if (!block) return '';
+    if (/^<(h[1-6]|ul|ol|li|pre|blockquote|hr|img)/.test(block)) return block;
+    return '<p>' + block.replace(/\n/g, ' ') + '</p>';
+  }).join('\n');
+
+  return html;
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.getFullYear() + '-'
+    + String(d.getMonth()+1).padStart(2,'0') + '-'
+    + String(d.getDate()).padStart(2,'0');
+}
+
+function setEl(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+function setText(id, txt) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = txt;
+}
+
+async function ghFetch(path) {
+  const r = await fetch('https://api.github.com' + path, {
+    headers: { 'Accept': 'application/vnd.github+json' }
+  });
+  if (!r.ok) throw new Error('GitHub API ' + r.status + ' for ' + path);
+  return r.json();
+}
+
+/* ── load repo metadata ── */
+async function loadRepo() {
+  try {
+    const repo = await ghFetch('/repos/' + REPO);
+    const ver = repo.name || 'NatureOS';
+    // stars
+    setText('stat-stars', repo.stargazers_count ?? '—');
+    setText('stat-issues', repo.open_issues_count ?? '—');
+    if (repo.description) setText('hero-desc', repo.description);
+  } catch(e) {
+    console.warn('repo fetch failed', e);
+  }
+}
+
+/* ── load releases → changelog + version stats ── */
+async function loadReleases() {
+  const container = document.getElementById('changelog-container');
+  try {
+    const releases = await ghFetch('/repos/' + REPO + '/releases');
+
+    if (!releases.length) {
+      container.innerHTML = '<div class="error-block">No releases found on GitHub yet.</div>';
+      return;
+    }
+
+    // version stat from latest
+    const latest = releases[0];
+    const verClean = latest.tag_name.replace(/^v/i,'');
+    setText('stat-version', verClean);
+    setText('stat-releases', releases.length);
+    setText('stat-released', fmtDate(latest.published_at));
+
+    // detect channel from tag
+    const tag = latest.tag_name.toLowerCase();
+    let channel = 'stable';
+    if (tag.includes('alpha')) channel = 'alpha';
+    else if (tag.includes('beta')) channel = 'beta';
+    else if (tag.includes('rc'))   channel = 'rc';
+    else if (tag.includes('pre') || tag.includes('dev') || tag.includes('nightly')) channel = 'dev';
+    setText('stat-channel', channel);
+
+    // hero version
+    setText('hero-ver', latest.tag_name);
+    setText('nav-ver', latest.tag_name);
+
+    // footer
+    setText('footer-text', '');
+    document.getElementById('footer-text').innerHTML =
+      'NatureOS ' + latest.tag_name + ' — written in pure x86 assembly — <a href="https://github.com/' + REPO + '" target="_blank">' + REPO + '</a>';
+
+    // build changelog HTML
+    let html = '';
+    for (const rel of releases) {
+      const v     = rel.tag_name;
+      const date  = fmtDate(rel.published_at || rel.created_at);
+      const name  = rel.name || v;
+      const body  = rel.body ? mdToHtml(rel.body) : '';
+      const prerel = rel.prerelease ? '<span class="channel-alpha" style="margin-left:6px;font-size:0.7rem">pre-release</span>' : '';
+      const draft  = rel.draft ? '<span class="channel-alpha" style="margin-left:6px;font-size:0.7rem;background:rgba(248,113,113,0.08);color:#f87171;border-color:#3d1515">draft</span>' : '';
+
+      html += `
+        <div class="cl-entry">
+          <div class="cl-meta">
+            <span class="cl-ver">${esc(v)}</span>
+            <span class="cl-date">${date}</span>
+          </div>
+          <div class="cl-body">
+            <h3>${esc(name)}${prerel}${draft}</h3>
+            ${body
+              ? '<div class="release-body">' + body + '</div>'
+              : '<p style="font-family:var(--mono);font-size:0.8rem;color:var(--green-mute);margin-top:6px">No release notes.</p>'
+            }
+            <p style="margin-top:10px">
+              <a href="${rel.html_url}" target="_blank" style="font-family:var(--mono);font-size:0.78rem">
+                View on GitHub ↗
+              </a>
+            </p>
+          </div>
+        </div>`;
+    }
+    container.innerHTML = '<div class="changelog">' + html + '</div>';
+
+  } catch(e) {
+    container.innerHTML = '<div class="error-block">Could not load releases: ' + esc(e.message) + '. <a href="https://github.com/' + REPO + '/releases" target="_blank">View on GitHub ↗</a></div>';
+    console.error(e);
+  }
+}
+
+/* ── load README ── */
+async function loadReadme() {
+  const container = document.getElementById('readme-container');
+  try {
+    const data = await ghFetch('/repos/' + REPO + '/readme');
+    const raw  = atob(data.content.replace(/\n/g,''));
+    const html = mdToHtml(raw);
+    container.innerHTML = '<div class="readme-content">' + html + '</div>';
+  } catch(e) {
+    container.innerHTML = '<div class="error-block">Could not load README: ' + esc(e.message) + '. <a href="https://github.com/' + REPO + '#readme" target="_blank">View on GitHub ↗</a></div>';
+    console.error(e);
+  }
+}
+
+/* ── run everything ── */
+Promise.all([loadRepo(), loadReleases(), loadReadme()]);
+</script>
 </body>
 </html>

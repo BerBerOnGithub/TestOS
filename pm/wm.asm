@@ -14,7 +14,8 @@
 ;  [+18]  db  focus  (1 = active / topmost)
 ;  [+19]  db  dirty  (1 = needs redraw)
 ;  [+20]  dd  title  (pointer to null-terminated string)
-;  [+24] .. [+31]  reserved
+;  [+24]  db  z_order
+;  [+25] .. [+31]  reserved
 ;
 ; Calling conventions used in this file:
 ;   fb_fill_rect        EAX=x EBX=y ECX=w EDX=h ESI=colour
@@ -56,6 +57,8 @@ WM_C_TINACT   equ 0x08      ; inactive title (same grey as taskbar)
 WM_C_BODY     equ 0x00      ; black client area
 WM_C_BORDER   equ 0x07      ; grey border
 WM_C_CLOSE    equ 0x04      ; red close button
+WM_SHADOW_OFS equ 4         ; drop shadow offset in pixels
+WM_C_SHADOW   equ 0x08      ; dark grey shadow
 
 ; - wm_init -
 wm_init:
@@ -143,6 +146,44 @@ wm_draw_one:
     mov  ebx, [edi+4]
     mov  ecx, [edi+8]
     mov  edx, [edi+12]
+
+    ; - drop shadow (drawn before window body so body covers overlap) -
+    push eax
+    push ebx
+    push ecx
+    push edx
+    add  eax, WM_SHADOW_OFS
+    add  ebx, WM_SHADOW_OFS
+    ; clip shadow width to screen right edge
+    mov  esi, eax
+    add  esi, ecx
+    cmp  esi, 640
+    jle  .shadow_w_ok
+    mov  ecx, 640
+    sub  ecx, eax
+.shadow_w_ok:
+    ; clip shadow height to taskbar top
+    mov  esi, ebx
+    add  esi, edx
+    cmp  esi, WM_TASKBAR_Y
+    jle  .shadow_h_ok
+    mov  edx, WM_TASKBAR_Y
+    sub  edx, ebx
+.shadow_h_ok:
+    mov  esi, WM_C_SHADOW
+    call fb_fill_rect
+    ; mark shadow rows dirty
+    push eax
+    push ebx
+    mov  eax, ebx
+    lea  ebx, [ebx+edx]
+    call gfx_mark_dirty
+    pop  ebx
+    pop  eax
+    pop  edx
+    pop  ecx
+    pop  ebx
+    pop  eax
 
     ; - fill entire window rect first to erase anything underneath -
     push eax
@@ -519,70 +560,56 @@ wm_draw_all:
     jne  .no_sm
     call wm_draw_startmenu
 .no_sm:
-    ; draw all unfocused windows
+    ; draw windows in z-order sweep (lowest z first)
+    mov  dword [wm_z], 0
+.zloop:
+    mov  eax, [wm_z]
+    cmp  eax, WM_MAX_WINS
+    jge  .zdone
     mov  dword [wm_i], 0
-.p1loop:
+.wloop:
     mov  ecx, [wm_i]
     cmp  ecx, WM_MAX_WINS
-    jge  .p1done
+    jge  .wnext_z
     imul edi, ecx, WM_STRIDE
     add  edi, wm_table
     cmp  byte [edi+17], 1
-    jne  .p1next
-    cmp  byte [edi+18], 1
-    je   .p1next
+    jne  .wnext
+    cmp  byte [edi+24], al
+    jne  .wnext
     call wm_draw_one
     cmp  byte [edi+16], WM_TERM
-    jne  .p1next
+    jne  .wcontent
     call term_redraw
-.p1next:
-    inc  dword [wm_i]
-    jmp  .p1loop
-.p1done:
-    call wm_redraw_contents
-    ; draw focused window last
-    mov  dword [wm_i], 0
-.p2loop:
-    mov  ecx, [wm_i]
-    cmp  ecx, WM_MAX_WINS
-    jge  .p2done
-    imul edi, ecx, WM_STRIDE
-    add  edi, wm_table
-    cmp  byte [edi+17], 1
-    jne  .p2next
-    cmp  byte [edi+18], 1
-    jne  .p2next
-    call wm_draw_one
-    cmp  byte [edi+16], WM_TERM
-    jne  .p2content
-    call term_redraw
-    jmp  .p2next
-.p2content:
-    movzx eax, byte [edi+16]
-    cmp  eax, WM_CLOCK
-    je   .p2clock
-    cmp  eax, WM_FILES
-    je   .p2files
-    cmp  eax, WM_HELP
-    je   .p2help
-    cmp  eax, WM_BROWSER
-    je   .p2browser
-    jmp  .p2next
-.p2clock:
+    jmp  .wnext
+.wcontent:
+    cmp  byte [edi+16], WM_CLOCK
+    je   .wclock
+    cmp  byte [edi+16], WM_FILES
+    je   .wfiles
+    cmp  byte [edi+16], WM_HELP
+    je   .whelp
+    cmp  byte [edi+16], WM_BROWSER
+    je   .wbrowser
+    jmp  .wnext
+.wclock:
     call wm_draw_clock
-    jmp  .p2next
-.p2files:
+    jmp  .wnext
+.wfiles:
     call wm_draw_files
-    jmp  .p2next
-.p2help:
+    jmp  .wnext
+.whelp:
     call wm_draw_help
-    jmp  .p2next
-.p2browser:
+    jmp  .wnext
+.wbrowser:
     call browser_draw
-.p2next:
+.wnext:
     inc  dword [wm_i]
-    jmp  .p2loop
-.p2done:
+    jmp  .wloop
+.wnext_z:
+    inc  dword [wm_z]
+    jmp  .zloop
+.zdone:
     ; clear dirty flags on all windows after full redraw
     mov  dword [wm_i], 0
 .clr_dirty:
@@ -636,70 +663,58 @@ wm_draw_dirty:
     jne  .dd_no_sm
     call wm_draw_startmenu
 .dd_no_sm:
-    ; redraw unfocused dirty windows
+    ; redraw dirty windows in z-order sweep (lowest z first)
+    mov  dword [wm_z], 0
+.dd_zloop:
+    mov  eax, [wm_z]
+    cmp  eax, WM_MAX_WINS
+    jge  .dd_zdone
     mov  dword [wm_i], 0
-.dd_p1:
+.dd_wloop:
     mov  ecx, [wm_i]
     cmp  ecx, WM_MAX_WINS
-    jge  .dd_p1done
+    jge  .dd_wnext_z
     imul edi, ecx, WM_STRIDE
     add  edi, wm_table
     cmp  byte [edi+17], 1
-    jne  .dd_p1next
-    cmp  byte [edi+18], 1
-    je   .dd_p1next
+    jne  .dd_wnext
+    cmp  byte [edi+19], 1
+    jne  .dd_wnext
+    cmp  byte [edi+24], al
+    jne  .dd_wnext
     call wm_draw_one
     cmp  byte [edi+16], WM_TERM
-    jne  .dd_p1next
+    jne  .dd_wcontent
     call term_redraw
-.dd_p1next:
-    inc  dword [wm_i]
-    jmp  .dd_p1
-.dd_p1done:
-    call wm_redraw_contents
-    ; redraw focused dirty window
-    mov  dword [wm_i], 0
-.dd_p2:
-    mov  ecx, [wm_i]
-    cmp  ecx, WM_MAX_WINS
-    jge  .dd_p2done
-    imul edi, ecx, WM_STRIDE
-    add  edi, wm_table
-    cmp  byte [edi+17], 1
-    jne  .dd_p2next
-    cmp  byte [edi+18], 1
-    jne  .dd_p2next
-    call wm_draw_one
-    cmp  byte [edi+16], WM_TERM
-    jne  .dd_p2content
-    call term_redraw
-    jmp  .dd_p2next
-.dd_p2content:
-    movzx eax, byte [edi+16]
-    cmp  eax, WM_CLOCK
-    je   .dd_clock
-    cmp  eax, WM_FILES
-    je   .dd_files
-    cmp  eax, WM_HELP
-    je   .dd_help
-    cmp  eax, WM_BROWSER
-    je   .dd_browser
-    jmp  .dd_p2next
-.dd_clock:
+    jmp  .dd_wnext
+.dd_wcontent:
+    cmp  byte [edi+16], WM_CLOCK
+    je   .dd_wclock
+    cmp  byte [edi+16], WM_FILES
+    je   .dd_wfiles
+    cmp  byte [edi+16], WM_HELP
+    je   .dd_whelp
+    cmp  byte [edi+16], WM_BROWSER
+    je   .dd_wbrowser
+    jmp  .dd_wnext
+.dd_wclock:
     call wm_draw_clock
-    jmp  .dd_p2next
-.dd_files:
+    jmp  .dd_wnext
+.dd_wfiles:
     call wm_draw_files
-    jmp  .dd_p2next
-.dd_help:
+    jmp  .dd_wnext
+.dd_whelp:
     call wm_draw_help
-    jmp  .dd_p2next
-.dd_browser:
+    jmp  .dd_wnext
+.dd_wbrowser:
     call browser_draw
-.dd_p2next:
+.dd_wnext:
     inc  dword [wm_i]
-    jmp  .dd_p2
-.dd_p2done:
+    jmp  .dd_wloop
+.dd_wnext_z:
+    inc  dword [wm_z]
+    jmp  .dd_zloop
+.dd_zdone:
     ; clear all dirty flags
     mov  dword [wm_i], 0
 .dd_clr:
@@ -788,6 +803,30 @@ wm_open:
     mov  dword [edi+20], wm_s_browser
 .title_ok:
 
+    ; count existing open windows to assign z_order
+    push ecx
+    push edi
+    xor  eax, eax
+    mov  byte [wm_tmp_zcnt], 0
+.zcnt_loop:
+    cmp  eax, WM_MAX_WINS
+    jge  .zcnt_done
+    cmp  eax, [esp+4]           ; skip the newly opened one (saved ecx)
+    je   .zcnt_skip
+    imul esi, eax, WM_STRIDE
+    add  esi, wm_table
+    cmp  byte [esi+17], 1
+    jne  .zcnt_skip
+    inc  byte [wm_tmp_zcnt]
+.zcnt_skip:
+    inc  eax
+    jmp  .zcnt_loop
+.zcnt_done:
+    pop  edi
+    pop  ecx
+    movzx eax, byte [wm_tmp_zcnt]
+    mov  byte [edi+24], al      ; z_order = number of existing open windows
+
     ; clear focus on all other windows
     push ecx
     push edi
@@ -825,10 +864,34 @@ wm_close:
     pusha
     imul edi, ecx, WM_STRIDE
     add  edi, wm_table
+    movzx eax, byte [edi+24]    ; save closed window z_order
+    mov  [wm_tmp_zclosed], eax
     mov  byte [edi+17], 0
     mov  byte [edi+18], 0
-    ; re-focus the first remaining open window
+    mov  byte [edi+24], 0
+
+    ; decrement z_order of all windows above the closed one
     xor  ecx, ecx
+.zdec:
+    cmp  ecx, WM_MAX_WINS
+    jge  .zdec_done
+    imul edi, ecx, WM_STRIDE
+    add  edi, wm_table
+    cmp  byte [edi+17], 1
+    jne  .zdec_next
+    movzx eax, byte [edi+24]
+    cmp  eax, [wm_tmp_zclosed]
+    jle  .zdec_next
+    dec  byte [edi+24]
+.zdec_next:
+    inc  ecx
+    jmp  .zdec
+.zdec_done:
+
+    ; focus the window with the highest z_order
+    xor  ecx, ecx
+    mov  byte [wm_tmp_ztop], 0
+    mov  dword [wm_tmp_itop], 0
 .rf:
     cmp  ecx, WM_MAX_WINS
     jge  .rf_done
@@ -836,12 +899,19 @@ wm_close:
     add  edi, wm_table
     cmp  byte [edi+17], 1
     jne  .rf_next
-    mov  byte [edi+18], 1
-    jmp  .rf_done
+    movzx eax, byte [edi+24]
+    cmp  al, [wm_tmp_ztop]
+    jle  .rf_next
+    mov  [wm_tmp_ztop], al
+    mov  [wm_tmp_itop], ecx
 .rf_next:
     inc  ecx
     jmp  .rf
 .rf_done:
+    mov  ecx, [wm_tmp_itop]
+    imul edi, ecx, WM_STRIDE
+    add  edi, wm_table
+    mov  byte [edi+18], 1
     call wm_draw_all
 
     popa
@@ -864,6 +934,62 @@ wm_set_focus:
     imul edi, ecx, WM_STRIDE
     add  edi, wm_table
     mov  byte [edi+18], 1
+    call wm_raise_to_top
+    popa
+    ret
+
+; - wm_raise_to_top -
+; In: ECX = index to raise
+wm_raise_to_top:
+    pusha
+    imul edi, ecx, WM_STRIDE
+    add  edi, wm_table
+    cmp  byte [edi+17], 0
+    je   .done
+    movzx eax, byte [edi+24]    ; current z_order
+    mov  [wm_tmp_zcurr], eax
+
+    ; count open windows to compute new top z
+    xor  eax, eax
+    mov  byte [wm_tmp_zcnt], 0
+.cnt:
+    cmp  eax, WM_MAX_WINS
+    jge  .cnt_done
+    imul esi, eax, WM_STRIDE
+    add  esi, wm_table
+    cmp  byte [esi+17], 1
+    jne  .cnt_skip
+    inc  byte [wm_tmp_zcnt]
+.cnt_skip:
+    inc  eax
+    jmp  .cnt
+.cnt_done:
+
+    ; shift all windows with higher z down by 1
+    xor  eax, eax
+.shift:
+    cmp  eax, WM_MAX_WINS
+    jge  .shift_done
+    cmp  eax, ecx
+    je   .shift_skip
+    imul esi, eax, WM_STRIDE
+    add  esi, wm_table
+    cmp  byte [esi+17], 1
+    jne  .shift_skip
+    movzx ebx, byte [esi+24]
+    cmp  ebx, [wm_tmp_zcurr]
+    jle  .shift_skip
+    dec  byte [esi+24]
+.shift_skip:
+    inc  eax
+    jmp  .shift
+.shift_done:
+
+    ; set target window to top z = num_open - 1
+    movzx eax, byte [wm_tmp_zcnt]
+    dec  eax
+    mov  byte [edi+24], al
+.done:
     popa
     ret
 
@@ -992,41 +1118,40 @@ wm_draw_scrollbar:
 ; In:  EAX=mx  EBX=my
 ; Out: CF=0 -> ECX=window index (topmost hit)  EDX=region(1=title 2=close 3=client)
 ;      CF=1 -> desktop (no window hit)
-; Tests focused window first (it draws on top), then others in reverse order.
+; Tests windows in descending z-order so the visually topmost window wins.
 wm_hit_test:
     push eax
     push ebx
 
-    ; --- Pass A: test the focused window first ---
-    xor  ecx, ecx
-.focused_scan:
-    cmp  ecx, WM_MAX_WINS
-    jge  .unfocused_scan
-    imul edi, ecx, WM_STRIDE
-    add  edi, wm_table
-    cmp  byte [edi+17], 1       ; open?
-    jne  .focused_next
-    cmp  byte [edi+18], 1       ; focused?
-    jne  .focused_next
-    jmp  .test_bounds            ; test this window
-.focused_next:
-    inc  ecx
-    jmp  .focused_scan
-
-    ; --- Pass B: test remaining windows in reverse table order ---
-.unfocused_scan:
-    mov  ecx, WM_MAX_WINS - 1
-.scan:
-    cmp  ecx, 0
+    mov  dword [wm_z], WM_MAX_WINS - 1
+.zscan:
+    mov  eax, [wm_z]
+    cmp  eax, 0
     jl   .miss
+    mov  dword [wm_i], 0
+.wscan:
+    mov  ecx, [wm_i]
+    cmp  ecx, WM_MAX_WINS
+    jge  .znext
     imul edi, ecx, WM_STRIDE
     add  edi, wm_table
     cmp  byte [edi+17], 1
-    jne  .snext
-    cmp  byte [edi+18], 1
-    je   .snext                  ; skip focused, already tested in pass A
+    jne  .wnext
+    cmp  byte [edi+24], al
+    jne  .wnext
+    jmp  .test_bounds
+.wnext:
+    inc  dword [wm_i]
+    jmp  .wscan
+.znext:
+    dec  dword [wm_z]
+    jmp  .zscan
 
 .test_bounds:
+    pop  ebx
+    pop  eax
+    push eax
+    push ebx
     ; x bounds check
     mov  edx, [edi+0]
     cmp  eax, edx
@@ -1044,14 +1169,9 @@ wm_hit_test:
     jmp  .bounds_hit
 
 .bounds_miss:
-    ; if we came from pass A (focused scan), move to pass B
-    ; if we came from pass B, go to next in reverse order
-    cmp  byte [edi+18], 1
-    je   .unfocused_scan        ; focused window missed - try unfocused ones
-    jmp  .snext                 ; unfocused window missed - try next
+    jmp  .znext
 
 .bounds_hit:
-
     ; - determine region -
     ; close button: x >= win_x+w-18  AND  y <= win_y+16
     mov  edx, [edi+0]
@@ -1081,11 +1201,6 @@ wm_hit_test:
     mov  edx, 3
     clc
     jmp  .hit
-
-.snext:
-    ; we're in the reverse scan (pass B)
-    dec  ecx
-    jmp  .scan
 
 .miss:
     stc
@@ -1326,21 +1441,25 @@ wm_on_release:
 
 ; - wm_redraw_contents -
 ; Draw content for all open non-terminal windows (clock, files, help).
-; Unfocused windows first, focused window last so it stays on top.
+; Drawn in z-order sweep so higher windows overwrite lower ones.
 wm_redraw_contents:
     pusha
-    ; Pass A: unfocused windows
+    mov  dword [wm_z], 0
+.zloop:
+    mov  eax, [wm_z]
+    cmp  eax, WM_MAX_WINS
+    jge  .done
     mov  dword [wm_i], 0
-.loop:
+.wloop:
     mov  ecx, [wm_i]
     cmp  ecx, WM_MAX_WINS
-    jge  .pass_b
+    jge  .wnext_z
     imul edi, ecx, WM_STRIDE
     add  edi, wm_table
     cmp  byte [edi+17], 1
-    jne  .next
-    cmp  byte [edi+18], 1
-    je   .next                  ; skip focused in this pass
+    jne  .wnext
+    cmp  byte [edi+24], al
+    jne  .wnext
     movzx eax, byte [edi+16]
     cmp  eax, WM_CLOCK
     je   .doclock
@@ -1348,51 +1467,21 @@ wm_redraw_contents:
     je   .dofiles
     cmp  eax, WM_HELP
     je   .dohelp
-    jmp  .next
+    jmp  .wnext
 .doclock:
     call wm_draw_clock
-    jmp  .next
+    jmp  .wnext
 .dofiles:
     call wm_draw_files
-    jmp  .next
+    jmp  .wnext
 .dohelp:
     call wm_draw_help
-.next:
+.wnext:
     inc  dword [wm_i]
-    jmp  .loop
-
-    ; Pass B: focused window only
-.pass_b:
-    mov  dword [wm_i], 0
-.loop_b:
-    mov  ecx, [wm_i]
-    cmp  ecx, WM_MAX_WINS
-    jge  .done
-    imul edi, ecx, WM_STRIDE
-    add  edi, wm_table
-    cmp  byte [edi+17], 1
-    jne  .next_b
-    cmp  byte [edi+18], 1
-    jne  .next_b                ; only focused
-    movzx eax, byte [edi+16]
-    cmp  eax, WM_CLOCK
-    je   .doclock_b
-    cmp  eax, WM_FILES
-    je   .dofiles_b
-    cmp  eax, WM_HELP
-    je   .dohelp_b
-    jmp  .next_b
-.doclock_b:
-    call wm_draw_clock
-    jmp  .next_b
-.dofiles_b:
-    call wm_draw_files
-    jmp  .next_b
-.dohelp_b:
-    call wm_draw_help
-.next_b:
-    inc  dword [wm_i]
-    jmp  .loop_b
+    jmp  .wloop
+.wnext_z:
+    inc  dword [wm_z]
+    jmp  .zloop
 .done:
     popa
     ret
@@ -2533,7 +2622,13 @@ SW_MODE_SW    equ 0
 SW_MODE_TIMER equ 1
 
 wm_i:            dd 0
+wm_z:            dd 0
 wm_tmp_idx:      dd 0
+wm_tmp_zcnt:     db 0
+wm_tmp_zcurr:    db 0
+wm_tmp_zclosed:  db 0
+wm_tmp_ztop:     db 0
+wm_tmp_itop:     dd 0
 
 wm_op_type:      dd 0
 wm_op_x:         dd 0

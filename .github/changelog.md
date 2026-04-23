@@ -1,8 +1,8 @@
 ## What's new
 
 Window Manager:
-	- Added drop shadow
-	- Implemented actual Z layering
+- Added drop shadow
+- Implemented actual Z layering
 
 
 

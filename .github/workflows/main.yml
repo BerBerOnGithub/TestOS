@@ -18,6 +18,7 @@ jobs:
       channel: ${{ steps.version.outputs.channel }}
       tag: ${{ steps.version.outputs.tag }}
       ver_short: ${{ steps.version.outputs.ver_short }}
+      build: ${{ steps.version.outputs.build }}
 
     steps:
       - name: Checkout repository
@@ -31,16 +32,30 @@ jobs:
       - name: Read version and build from version.inc
         id: version
         run: |
-          VERSION=$(grep '%define OS_VERSION ' include/version.inc | grep -oP '".*?"' | tr -d '"')
-          CHANNEL=$(grep '%define RELEASE_CHANNEL' include/version.inc | grep -oP '".*?"' | tr -d '"')
-          VER_SHORT=$(grep '%define OS_VER_SHORT' include/version.inc | grep -oP '".*?"' | tr -d '"')
-          OS_BUILD=$(grep '%define OS_BUILD' include/version.inc | grep -oP '".*?"' | tr -d '"')
+          set -e
 
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
-          echo "ver_short=$VER_SHORT" >> $GITHUB_OUTPUT
-          echo "build=$OS_BUILD" >> $GITHUB_OUTPUT
-          echo "tag=v$OS_BUILD" >> $GITHUB_OUTPUT
+          extract() {
+            grep "$1" include/version.inc | grep -oP '".*?"' | tr -d '"' || true
+          }
+
+          VERSION=$(extract '%define OS_VERSION ')
+          CHANNEL=$(extract '%define RELEASE_CHANNEL')
+          VER_SHORT=$(extract '%define OS_VER_SHORT')
+          OS_BUILD=$(extract '%define OS_BUILD')
+
+          # Fail if anything important is missing
+          [ -z "$VERSION" ] && echo "Missing OS_VERSION" && exit 1
+          [ -z "$CHANNEL" ] && echo "Missing RELEASE_CHANNEL" && exit 1
+          [ -z "$VER_SHORT" ] && echo "Missing OS_VER_SHORT" && exit 1
+          [ -z "$OS_BUILD" ] && echo "Missing OS_BUILD" && exit 1
+
+          {
+            echo "version=$VERSION"
+            echo "channel=$CHANNEL"
+            echo "ver_short=$VER_SHORT"
+            echo "build=$OS_BUILD"
+            echo "tag=v$OS_BUILD"
+          } >> "$GITHUB_OUTPUT"
 
           echo "Detected version: $VER_SHORT ($CHANNEL), build: $OS_BUILD"
 
@@ -57,9 +72,9 @@ jobs:
       - name: Read changelog
         id: changelog
         run: |
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          cat .github/changelog.md >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "body<<EOF" >> "$GITHUB_OUTPUT"
+          cat .github/changelog.md >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Check if release already exists (by build tag)
         id: check_release
@@ -68,10 +83,10 @@ jobs:
         run: |
           TAG_NAME="${{ steps.version.outputs.tag }}"
           if gh release view "$TAG_NAME" --repo ${{ github.repository }} &>/dev/null; then
-            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "exists=true" >> "$GITHUB_OUTPUT"
             echo "Release $TAG_NAME already exists – skipping creation."
           else
-            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create GitHub Release

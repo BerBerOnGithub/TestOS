@@ -1,26 +1,32 @@
-# ClaudeOS v2.0 - Build Guide
+<div align="center">
 
-A real bootable x86 operating system written in pure assembly. Runs directly
-on the CPU - no OS, no runtime, no libraries. Real-mode shell with full BIOS
-access, plus a 32-bit protected-mode graphical desktop with a window manager,
-mouse support, and direct hardware drivers.
+<img src="https://raw.githubusercontent.com/BerBerOnGithub/NatureOS/9d09829cac07d6b0a4d158923cf409b0467a0f7b/icon.svg" alt="NatureOS Logo" width="128">
 
--
+# NatureOS v2.0 - Technical Build Guide
+
+A bare-metal bootable x86 operating system implemented entirely in assembly language. NatureOS executes directly on the CPU without any underlying OS, runtime environment, or external libraries. The architecture comprises a real-mode kernel with direct BIOS interrupt access and a 32-bit protected-mode subsystem featuring a preemptive window manager, PS/2 mouse driver, framebuffer graphics, and native hardware device drivers.
+
+</div>
+
+---
 
 ## Requirements
 
 | Tool   | Get it from                                              |
-|-|-|
+|--------|----------------------------------------------------------|
 | NASM   | https://nasm.us/pub/nasm/releasebuilds/?C=M&O=D         |
 | Python | https://www.python.org/downloads/                        |
 | QEMU   | https://www.qemu.org/download/#windows                   |
+
+> [!IMPORTANT]
+> NatureOS requires NASM, Python with pycdlib, and QEMU to build and run. Ensure all tools are installed before proceeding.
 
 **First-time Python setup** (one time only):
 ```
 pip install pycdlib
 ```
 
--
+---
 
 ## Step 1 - Build
 
@@ -28,7 +34,7 @@ pip install pycdlib
 build.bat
 ```
 
-Produces `claudeos.iso`.
+Produces `natureos.iso`.
 
 ```
 build.bat run
@@ -36,7 +42,10 @@ build.bat run
 
 Builds and launches in QEMU immediately.
 
--
+> [!TIP]
+> Use `build.bat run` (or `make run` on Linux/macOS) to build and launch QEMU in one step.
+
+---
 
 ## Step 2 - Run in QEMU
 
@@ -48,7 +57,7 @@ build.bat run
 ### Full command
 ```
 qemu-system-x86_64 ^
-  -cdrom claudeos.iso ^
+  -cdrom natureos.iso ^
   -drive format=raw,file=data.img,if=ide,index=3 ^
   -boot d ^
   -m 64M ^
@@ -60,19 +69,20 @@ qemu-system-x86_64 ^
   -machine pcspk-audiodev=snd ^
   -nic user,model=e1000 ^
   -display sdl,window-close=on ^
-  -name "ClaudeOS" ^
-  -no-reboot
+  -name "NatureOS" ^
+  -no-reboot ^
+  -serial stdio
 ```
 
-> **Linux/macOS audio:** replace `-audiodev id=snd,driver=dsound` with
-> `-audiodev id=snd,driver=pa` (PulseAudio) or `driver=alsa`.
+> [!TIP]
+> On Linux/macOS, replace the audio driver from `dsound` to `pa` (PulseAudio) or `alsa`.
 
--
+---
 
 ## Real-Mode Shell Commands
 
 | Command              | What it does                              |
-|-|-|
+|----------------------|-------------------------------------------|
 | `help`               | Show all commands (paged)                 |
 | `echo <text>`        | Print text                                |
 | `clear`              | Clear the screen                          |
@@ -91,12 +101,12 @@ qemu-system-x86_64 ^
 | `probe`              | Verify real mode                          |
 | `drivers`            | Show loaded real-mode drivers             |
 | `ls`                 | List filesystem files                     |
-| `run <name>`         | Run an app from ClaudeFS                  |
+| `run <name>`         | Run an app from NatureFS                  |
 | `reboot`             | Reboot the machine                        |
 | `halt`               | Halt the CPU                              |
 | `pm`                 | Switch to 32-bit protected mode + desktop |
 
--
+---
 
 ## Protected-Mode Desktop
 
@@ -105,14 +115,14 @@ Type `pm` in the real-mode shell to enter the graphical desktop.
 - **Mouse** - PS/2 mouse, full cursor support
 - **Terminal** - type commands in the terminal window
 - **Icons** - click Terminal / Files on the left sidebar
-- **Windows** - drag title bars to move, click  to close
+- **Windows** - drag title bars to move, click button to close
 - **Taskbar** - click buttons to switch between open windows
 - **PrtSc** - capture screenshot, then `savescr` to save to disk
 
 ### Terminal Commands (PM)
 
 | Command              | What it does                              |
-|-|-|
+|----------------------|-------------------------------------------|
 | `help`               | Show all PM commands                      |
 | `ver`                | Version info                              |
 | `clear`              | Clear terminal                            |
@@ -120,9 +130,9 @@ Type `pm` in the real-mode shell to enter the graphical desktop.
 | `calc <n> <op> <n>`  | 32-bit signed calculator                  |
 | `probe`              | Confirm 32-bit protected mode             |
 | `drivers`            | Show loaded PM drivers                    |
-| `ls`                 | List files (ISO + data disk)              |
+| `ls`                 | List files (ISO + NatureDisk)             |
 | `cat <name>`         | Print file contents to terminal           |
-| `rm <name>`          | Delete file from data disk                |
+| `rm <name>`          | Delete file from NatureDisk               |
 | `hexdump <name>`     | Hex + ASCII dump of file                  |
 | `pci`                | Enumerate all PCI devices                 |
 | `ifconfig`           | Show NIC MAC address and link status      |
@@ -134,10 +144,10 @@ Type `pm` in the real-mode shell to enter the graphical desktop.
 | `stopwatch`          | Stopwatch (start/stop/reset)              |
 | `timer MM:SS`        | Countdown timer                           |
 | `files`              | Open file browser window                  |
-| `savescr`            | Save pending screenshot to data disk      |
+| `savescr`            | Save pending screenshot to NatureDisk     |
 | `exit`               | Return to real-mode shell                 |
 
--
+---
 
 ## Wallpaper
 
@@ -145,29 +155,32 @@ Drop a file named `wallpaper.bmp` into the `apps/` folder before building.
 
 **Requirements:**
 - Format: BMP, 8-bit indexed (256 colour)
-- Size: exactly 640480 pixels
+- Size: exactly 640x480 pixels
 
--
+---
 
 ## Network Stack
 
 | Layer     | Status      |
-|-|-|
-| PCI       |  Done     |
-| e1000 NIC |  Done     |
-| Ethernet  |  Done     |
-| ARP       |  Done     |
-| IP        |  Done     |
-| ICMP/ping |  Done     |
-| UDP       |  Done     |
-| DNS       |  Done     |
+|-----------|-------------|
+| PCI       | Done        |
+| e1000 NIC | Done        |
+| Ethernet  | Done        |
+| ARP       | Done        |
+| IP        | Done        |
+| ICMP/ping | Done        |
+| UDP       | Done        |
+| DNS       | Done        |
 
--
+> [!NOTE]
+> The network stack supports e1000 NIC emulation in QEMU. For DNS resolution, ensure your QEMU instance has user-mode networking enabled (`-nic user,model=e1000`).
+
+---
 
 ## Project Structure
 
 ```
-claudeos/
+natureos/
 +-- build.bat                   Windows build + run script
 +-- Makefile                    Linux/macOS build script
 +-- mkfs.py                     Filesystem packer
@@ -179,7 +192,7 @@ claudeos/
 +-- kernel.asm                  Kernel entry point + includes
 +-- sdk.asm                     App SDK (syscall macros)
 |
-+-- apps/                       Files packed into ClaudeFS
++-- apps/                       Files packed into NatureFS
 |
 +-- core/                       Real-mode hardware abstractions
 +-- drivers/                    Real-mode driver registry
@@ -194,12 +207,12 @@ claudeos/
     +-- wm.asm                  Window manager
     +-- terminal.asm            Terminal emulator
     +-- gfx.asm                 Framebuffer primitives
-    +-- font.asm                88 bitmap font renderer
+    +-- font.asm                8x8 bitmap font renderer
     +-- mouse.asm               PS/2 mouse driver
     +-- wallpaper.asm           Desktop wallpaper loader
     +-- icons.asm               Desktop icon system
     +-- fs_pm.asm               ISO filesystem reader
-    +-- fs_data.asm             ClaudeFS data disk (read/write)
+    +-- fs_data.asm             NatureFS data disk (read/write)
     +-- bios_disk.asm           BIOS INT 13h disk I/O from PM
     +-- irq.asm                 IDT, PIC, PIT timer
     +-- net/
@@ -212,15 +225,20 @@ claudeos/
         +-- udp.asm             UDP + DNS resolver
 ```
 
--
--
+---
 
 ## Physical Memory Map
 
 Every large buffer has a fixed address. **Do not place new buffers without checking this table first** - silent overlaps are the #1 source of hard-to-diagnose bugs (e.g. the wallpaper buffer once sat at `0x100000` and silently bulldozed the e1000 descriptor rings on every boot).
 
+> [!WARNING]
+> Incorrect memory buffer placements can cause silent data corruption. Always consult the Physical Memory Map before adding new buffers.
+
+> [!CAUTION]
+> Modifying the memory map without understanding buffer overlaps can lead to hard-to-diagnose bugs. The wallpaper buffer previously overwrote e1000 descriptor rings due to address conflicts.
+
 | Range                   | Size    | Owner                                      |
-|-|-|-|
+|-------------------------|---------|--------------------------------------------|
 | `0x00000 - 0x003FF`   | 1 KB    | IVT (Interrupt Vector Table)               |
 | `0x00400 - 0x004FF`   | 256 B   | BIOS Data Area                             |
 | `0x07C00 - 0x07DFF`   | 512 B   | Stage 1 bootloader                         |
@@ -246,14 +264,16 @@ Every large buffer has a fixed address. **Do not place new buffers without check
 | `0x650800 - 0x6527FF` | 8 KB    | TCP_RX_BUF (inbound payload reassembly)    |
 
 
+---
+
 ## How It Works
 
 The BIOS loads `boot.asm` (512 bytes) at `0x7C00`. Stage 2 uses INT 13h LBA
-reads to load the kernel and ClaudeFS into memory.
+reads to load the kernel and NatureFS into memory.
 
 The kernel initialises real-mode drivers and enters a command shell. Typing
 `pm` switches to 32-bit protected mode: GDT loaded, `CR0.PE=1`, far jump to
-`pm_entry`. VBE graphics (640480 8bpp), PS/2 mouse, and the graphical
+`pm_entry`. VBE graphics (640x480 8bpp), PS/2 mouse, and the graphical
 desktop start up.
 
 No C. No libraries. No OS. Just x86 assembly and direct hardware.

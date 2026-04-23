@@ -714,7 +714,7 @@ wm_draw_dirty:
 .dd_clrdone:
     call cursor_save_bg
     call cursor_draw
-    call gfx_flush_full
+    call gfx_flush
 .dd_done:
     popa
     ret
@@ -2072,104 +2072,102 @@ wm_write_dec_edi:
 ; pit_ticks is incremented at 100Hz by the IRQ0 handler.
 ; We snapshot it and act only when it advances.
 wm_update_contents:
-    push eax
-    push ecx
-    push edi
+push eax
+push ecx
+push edi
 
-    mov  eax, [pit_ticks]
-    cmp  eax, [sw_last_pit]
-    je   .done                  ; no new tick yet
-    mov  [sw_last_pit], eax
+mov  eax, [pit_ticks]
+cmp  eax, [sw_last_pit]
+je   .done                  ; no new tick yet
+mov  [sw_last_pit], eax
 
-    ; - notification auto-clear -
-    call wm_notify_tick
+; - notification auto-clear -
+call wm_notify_tick
 .no_notify:
 
-    ; - taskbar clock: update on RTC second change -
-    push eax
-    mov  al, 0x00
-    out  0x70, al
-    in   al, 0x71
-    movzx eax, al
-    call wm_bcd2bin
-    cmp  eax, [wm_last_sec]
-    je   .no_clock
-    mov  [wm_last_sec], eax
-    inc  dword [si_uptime_secs]     ; tick uptime counter once per RTC second
-    ; if timer is running, increment elapsed RTC seconds
-    cmp  byte [sw_running], 1
-    jne  .no_rtc_tick
-    cmp  byte [sw_mode], SW_MODE_TIMER
-    jne  .no_rtc_tick
-    inc  dword [sw_rtc_secs]
+; - taskbar clock: update on RTC second change -
+push eax
+mov  al, 0x00
+out  0x70, al
+in   al, 0x71
+movzx eax, al
+call wm_bcd2bin
+cmp  eax, [wm_last_sec]
+je   .no_clock
+mov  [wm_last_sec], eax
+inc  dword [si_uptime_secs]     ; tick uptime counter once per RTC second
+; if timer is running, increment elapsed RTC seconds
+cmp  byte [sw_running], 1
+jne  .no_rtc_tick
+cmp  byte [sw_mode], SW_MODE_TIMER
+jne  .no_rtc_tick
+inc  dword [sw_rtc_secs]
 .no_rtc_tick:
-    ; update clock only per second
-    call wm_draw_taskbar_clock
-    ; also redraw sysinfo widget (uptime, files, disk) once per second
-    ; use full redraw to respect z-order (sysinfo must not draw over windows)
-    call wm_draw_all
+; update clock only per second
+call wm_draw_taskbar_clock
+; redraw sysinfo widget once per second (transparent over desktop)
+call wm_draw_sysinfo
 .no_clock:
-    pop  eax
+pop  eax
 
-    ; - stopwatch/timer: only if running -
-    cmp  byte [sw_running], 1
-    jne  .done
+; - stopwatch/timer: only if running -
+cmp  byte [sw_running], 1
+jne  .done
 
-    ; stopwatch always counts PIT ticks (cosmetic only, accuracy doesn't matter)
-    inc  dword [sw_cs_count]
+; stopwatch always counts PIT ticks (cosmetic only, accuracy doesn't matter)
+inc  dword [sw_cs_count]
 
-    ; update sw_ticks: what wm_draw_clock will display
-    cmp  byte [sw_mode], SW_MODE_TIMER
-    je   .timer_update
-    ; stopwatch: display = sw_cs_count
-    mov  eax, [sw_cs_count]
-    mov  [sw_ticks], eax
-    jmp  .check_redraw
+; update sw_ticks: what wm_draw_clock will display
+cmp  byte [sw_mode], SW_MODE_TIMER
+je   .timer_update
+; stopwatch: display = sw_cs_count
+mov  eax, [sw_cs_count]
+mov  [sw_ticks], eax
+jmp  .check_redraw
 
 .timer_update:
-    ; timer: display = remaining seconds from RTC (sw_rtc_secs counts real seconds)
-    ; sw_ticks_end = total seconds entered by user
-    mov  eax, [sw_ticks_end]
-    sub  eax, [sw_rtc_secs]
-    jns  .timer_pos
-    xor  eax, eax
-    mov  byte [sw_running], 0
+; timer: display = remaining seconds from RTC (sw_rtc_secs counts real seconds)
+; sw_ticks_end = total seconds entered by user
+mov  eax, [sw_ticks_end]
+sub  eax, [sw_rtc_secs]
+jns  .timer_pos
+xor  eax, eax
+mov  byte [sw_running], 0
 .timer_pos:
-    ; convert remaining seconds to centiseconds for display
-    imul eax, 100
-    mov  [sw_ticks], eax
+; convert remaining seconds to centiseconds for display
+imul eax, 100
+mov  [sw_ticks], eax
 
 .check_redraw:
-    ; redraw every 4 ticks (25fps)
-    mov  eax, [sw_cs_count]
-    and  eax, 0x03
-    jnz  .done
+; redraw every 4 ticks (25fps)
+mov  eax, [sw_cs_count]
+and  eax, 0x03
+jnz  .done
 .do_redraw:
-    mov  dword [wm_i], 0
+mov  dword [wm_i], 0
 .sw_loop:
-    mov  ecx, [wm_i]
-    cmp  ecx, WM_MAX_WINS
-    jge  .done
-    imul edi, ecx, WM_STRIDE
-    add  edi, wm_table
-    cmp  byte [edi+17], 1
-    jne  .sw_next
-    cmp  byte [edi+16], WM_CLOCK
-    jne  .sw_next
-    call cursor_erase
-    call wm_draw_clock
-    call cursor_save_bg
-    call cursor_draw
+mov  ecx, [wm_i]
+cmp  ecx, WM_MAX_WINS
+jge  .done
+imul edi, ecx, WM_STRIDE
+add  edi, wm_table
+cmp  byte [edi+17], 1
+jne  .sw_next
+cmp  byte [edi+16], WM_CLOCK
+jne  .sw_next
+call cursor_erase
+call wm_draw_clock
+call cursor_save_bg
+call cursor_draw
 .sw_next:
-    inc  dword [wm_i]
-    jmp  .sw_loop
+inc  dword [wm_i]
+jmp  .sw_loop
 
 .done:
-    call gfx_flush
-    pop  edi
-    pop  ecx
-    pop  eax
-    ret
+pop  edi
+pop  ecx
+pop  eax
+ret
 
 ; - wm_draw_taskbar_clock -
 ; Draws HH:MM:SS right-aligned in the taskbar (right side, before watermark).

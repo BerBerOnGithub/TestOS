@@ -122,6 +122,14 @@ browser_draw:
     sub  edx, WM_TITLE_H + 35 ; content h
     
     mov  esi, browser_content
+    ; Only re-measure if content changed since last measure
+    cmp  byte [browser_content_dirty], 1
+    jne  .skip_measure
+    mov  byte [browser_measuring], 1
+    call browser_draw_content
+    mov  byte [browser_measuring], 0
+    mov  byte [browser_content_dirty], 0
+.skip_measure:
     call browser_draw_content
     
     ; Draw scrollbar
@@ -1385,6 +1393,7 @@ browser_fetch_start:
     ; reset scroll, content
     mov  dword [browser_scroll_y], 0
     mov  dword [browser_total_h], 0
+    mov  byte  [browser_content_dirty], 1
     mov  dword [br_recv_ptr], browser_content
     mov  dword [br_dns_ctr], 2000000
     mov  dword [br_conn_ctr], TCP_POLL_LIMIT
@@ -1726,6 +1735,7 @@ browser_fetch_tick:
     mov  byte [browser_measuring], 0
 
     mov  byte [br_fetch_state], BR_ST_IDLE
+    mov  byte [browser_content_dirty], 1
     call wm_invalidate
     jmp  .done
 
@@ -1738,6 +1748,7 @@ browser_fetch_tick:
     jnz  .copy_err2
     mov  byte [tcp_state], TCP_STATE_CLOSED
     mov  byte [br_fetch_state], BR_ST_IDLE
+    mov  byte [browser_content_dirty], 1
     call wm_invalidate
 
 .done:
@@ -1818,6 +1829,7 @@ dns_tmp_hostname:   dd 0               ; pointer to hostname being resolved
 browser_scroll_y:   dd 0               ; virtual scroll offset
 browser_total_h:    dd 0               ; total content height
 browser_measuring:  db 0               ; 1 = measure height without drawing
+browser_content_dirty: db 1            ; 1 = content changed, needs re-measure
 br_fetch_state:     db BR_ST_IDLE      ; async fetch state machine
 br_recv_ptr:        dd 0               ; write pointer into browser_content during recv
 br_dns_ctr:         dd 0               ; DNS timeout countdown

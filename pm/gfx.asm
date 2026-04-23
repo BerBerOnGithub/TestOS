@@ -245,6 +245,7 @@ fb_set_pixel:
 
 ; -
 ; fb_fill_rect - EAX=x, EBX=y, ECX=width, EDX=height, ESI=colour
+; Uses rep stosb per row for efficiency.
 ; -
 fb_fill_rect:
     push eax
@@ -263,12 +264,7 @@ fb_fill_rect:
     call gfx_row_ptr
     mov  ecx, [gfx_rect_w]
     movzx eax, byte [gfx_rect_col]
-    push ecx
-.fi:
-    mov  [edi], al
-    inc  edi
-    loop .fi
-    pop  ecx
+    rep  stosb
     inc  ebx
     dec  edx
     jmp  .fr

@@ -135,11 +135,7 @@ pm_entry:
     call term_tick
     call browser_tick
     call wm_draw_dirty          ; only redraws windows marked dirty
-
-    cmp  byte [scr_pending], 1
-    jne  .no_scr
-.no_scr:
-    call gfx_flush
+    call gfx_flush              ; single flush per frame
     jmp  .loop
 
 ; -

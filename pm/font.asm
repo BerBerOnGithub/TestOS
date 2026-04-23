@@ -63,6 +63,10 @@ fb_draw_char:
     mov   [fc_fg], dl
     mov   [fc_bg], dh
 
+    ; cache framebuffer base and pitch in registers for the row loop
+    mov   ebx, [gfx_fb_base]
+    mov   ecx, [gfx_fb_pitch]
+
     ; row loop: esi = row index (0..7)
     xor   esi, esi
 .row:
@@ -71,10 +75,9 @@ fb_draw_char:
 
     ; EDI = framebuffer address of pixel (fc_x, fc_y + row)
     ; EDI = gfx_fb_base + (fc_y + row) * gfx_fb_pitch + fc_x
-    mov   edi, [gfx_fb_base]
+    mov   edi, ebx
     mov   eax, [fc_y]
     add   eax, esi
-    mov   ecx, [gfx_fb_pitch]
     mul   ecx                    ; eax = (fc_y+row) * pitch
     add   edi, eax
     add   edi, [fc_x]            ; edi = start of this char row in fb
@@ -84,17 +87,19 @@ fb_draw_char:
     movzx eax, byte [eax + esi]  ; al = bitmap
     mov   [fc_bits], al
 
-    ; col loop: ecx = col index (0..7)
-    xor   ecx, ecx
+    ; col loop: edx = col index (0..7)
+    xor   edx, edx
 .col:
-    cmp   ecx, 8
+    cmp   edx, 8
     jge   .next_row
 
     ; test bit 7-col (MSB = leftmost)
     movzx eax, byte [fc_bits]
-    mov   edx, 7
-    sub   edx, ecx
-    bt    eax, edx               ; CF=1 if pixel set
+    push  eax
+    mov   eax, 7
+    sub   eax, edx
+    bt    dword [esp], eax       ; CF=1 if pixel set
+    add   esp, 4
 
     jc    .fg_px
 
@@ -102,15 +107,15 @@ fb_draw_char:
     cmp   byte [fc_bg], 0xFF
     je    .next_col
     mov   al, [fc_bg]
-    mov   [edi + ecx], al
+    mov   [edi + edx], al
     jmp   .next_col
 
 .fg_px:
     mov   al, [fc_fg]
-    mov   [edi + ecx], al
+    mov   [edi + edx], al
 
 .next_col:
-    inc   ecx
+    inc   edx
     jmp   .col
 
 .next_row:

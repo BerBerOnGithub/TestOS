@@ -108,6 +108,10 @@ pm_str_pfx_hexdump:  db 'hexdump ', 0
 pm_str_cmd_bioscall: db 'bioscall', 0
 pm_str_cmd_sysinfo:  db 'sysinfo', 0
 pm_str_cmd_browser:  db 'browser', 0
+pm_str_pfx_beep:     db 'beep ', 0
+pm_str_pfx_wp:       db 'wp ', 0
+pm_str_cmd_taskman:  db 'taskman', 0
+pm_str_beep_usage:   db 'Usage: beep <freq_hz> <duration_ticks>', 13, 10, 0
 
 ; Window manager strings
 pm_str_wm_full:      db 'Max windows open (close one first).', 0
@@ -153,6 +157,8 @@ pm_str_help_text:
     db ' | hexdump <name>       | hex dump of a file         |', 13, 10
     db ' | savescr              | save screenshot to disk    |', 13, 10
     db ' | sysinfo              | show system information    |', 13, 10
+    db ' | wp <name>            | set desktop wallpaper      |', 13, 10
+    db ' | taskman              | open task manager          |', 13, 10
     db ' | exit                 | return to real mode        |', 13, 10
     db ' +----------------------+----------------------------+', 13, 10, 10, 0
 

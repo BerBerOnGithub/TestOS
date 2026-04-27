@@ -15,6 +15,10 @@ SYS_CLEAR       equ 0x06
 SYS_PRINT_INT   equ 0x07
 SYS_PRINT_INT32 equ 0x09
 SYS_GETKEY      equ 0x0A
+SYS_UPTIME      equ 0x0B
+SYS_DELAY       equ 0x0C
+SYS_BEEP        equ 0x0D
+SYS_FEXISTS     equ 0x0E
 
 ; color constants
 CLR_NORMAL  equ 0x07
@@ -83,6 +87,30 @@ CLR_RED     equ 0x0C
 
 %macro getkey 0
     mov  ah, SYS_GETKEY
+    syscall
+%endmacro
+
+%macro get_uptime 0
+    mov  ah, SYS_UPTIME
+    syscall
+%endmacro
+
+%macro delay 1
+    mov  dx, %1
+    mov  ah, SYS_DELAY
+    syscall
+%endmacro
+
+%macro beep 2
+    mov  bx, %1
+    mov  cx, %2
+    mov  ah, SYS_BEEP
+    syscall
+%endmacro
+
+%macro file_exists 1
+    mov  si, %1
+    mov  ah, SYS_FEXISTS
     syscall
 %endmacro
 

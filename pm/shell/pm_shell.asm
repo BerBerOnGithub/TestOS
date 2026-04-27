@@ -75,10 +75,12 @@ pm_entry:
     mov  edx, 520           ; width: fills to x=630
     mov  esi, 340
     call wm_open            ; ECX = window index (ignored here)
+    push ecx
 
     call wm_draw_all
 
     call mouse_init
+    pop  ecx
     call term_init
 
 .loop:
@@ -331,6 +333,21 @@ pm_exec:
     call pm_strcmp
     je   .browser
 
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_pfx_beep
+    call pm_startswith
+    je   .beep
+
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_pfx_wp
+    call pm_startswith
+    je   .wp
+
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_cmd_taskman
+    call pm_strcmp
+    je   .taskman
+
     ; unknown
     mov  esi, pm_str_unknown
     mov  bl, 0x0C
@@ -389,6 +406,12 @@ pm_exec:
     jmp  .done
 .browser:   call pm_cmd_browser
     jmp  .done
+.beep:      call pm_cmd_beep
+    jmp  .done
+.wp:        call pm_cmd_wp
+    jmp  .done
+.taskman:   call pm_cmd_taskman
+    jmp  .done
 .exit:  call pm_cmd_exit       ; does not return to here
 
 .done:
@@ -419,8 +442,8 @@ pm_cmd_term:
     jc   .full
     push ecx
     call wm_draw_all
-    call term_init
     pop  ecx
+    call term_init
     jmp  .done
 .full:
     mov  esi, pm_str_wm_full
@@ -662,18 +685,20 @@ dbg_serial_puts:
 ; -
 ; Sub-modules
 ; -
-%include "pm/pm_screen.asm"
-%include "pm/pm_keyboard.asm"
-%include "pm/pm_string.asm"
-%include "pm/pm_commands.asm"
-%include "pm/sysinfo.asm"
-%include "pm/browser.asm"
-%include "pm/pm_drivers.asm"
-%include "pm/pm_data.asm"
-%include "pm/mouse.asm"
-%include "pm/terminal.asm"
-%include "pm/fs_pm.asm"
-%include "pm/wm.asm"
-%include "pm/icons.asm"
-%include "pm/wallpaper.asm"
-%include "pm/paging.asm"
+%include "pm/core/pm_screen.asm"
+%include "pm/drivers/pm_keyboard.asm"
+%include "pm/core/pm_string.asm"
+%include "pm/shell/pm_commands.asm"
+%include "pm/apps/sysinfo.asm"
+%include "pm/apps/taskman.asm"
+%include "pm/apps/browser.asm"
+%include "pm/drivers/pm_drivers.asm"
+%include "pm/core/pm_data.asm"
+%include "pm/drivers/mouse.asm"
+%include "pm/apps/terminal.asm"
+%include "pm/core/fs_pm.asm"
+%include "pm/gui/wm.asm"
+%include "pm/gui/wm_taskbar.asm"
+%include "pm/gui/icons.asm"
+%include "pm/gui/wallpaper.asm"
+%include "pm/core/paging.asm"

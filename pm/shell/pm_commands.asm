@@ -723,6 +723,48 @@ ls_print_dec:
 ls_ten: dd 10
 
 ; -
+; pm_cmd_beep - Play a tone using the PC Speaker
+; Usage: beep <freq> <ticks>
+; -
+pm_cmd_beep:
+    pusha
+    
+    mov  esi, pm_input_buf
+    add  esi, 5              ; skip "beep "
+    call pm_skip_spaces
+    
+    mov  al, [esi]
+    or   al, al
+    jz   .usage
+    
+    call pm_parse_int
+    push eax                 ; safe-store frequency
+    
+    call pm_skip_spaces
+    mov  al, [esi]
+    or   al, al
+    jz   .usage_pop
+    
+    call pm_parse_int
+    mov  ebx, eax            ; EBX = duration_ticks
+    pop  eax                 ; EAX = frequency
+    
+    call speaker_beep
+    jmp  .done
+    
+.usage_pop:
+    pop  eax
+.usage:
+    mov  esi, pm_str_beep_usage
+    mov  bl, 0x0E
+    call pm_puts
+    call pm_newline
+    
+.done:
+    popa
+    ret
+
+; -
 ; pm_cmd_cat  -  print text file to terminal
 ; Usage: cat <name>
 ; -
@@ -1123,4 +1165,62 @@ pm_cmd_browser:
     call wm_open
     popa
     ret
+
+; ===========================================================================
+; pm_cmd_wp - Set desktop wallpaper
+; Usage: wp <filename>
+; ===========================================================================
+pm_cmd_wp:
+    pusha
+    mov  esi, pm_input_buf
+    add  esi, 3              ; skip "wp "
+    call pm_skip_spaces
+    
+    mov  al, [esi]
+    test al, al
+    jz   .usage
+
+    ; Copy filename to wallpaper's buffer
+    mov  edi, wp_filename
+    mov  ecx, 31
+.copy:
+    mov  al, [esi]
+    cmp  al, ' '
+    jbe  .done_copy
+    mov  [edi], al
+    inc  esi
+    inc  edi
+    loop .copy
+.done_copy:
+    mov  byte [edi], 0
+
+    ; Call wallpaper loader
+    call wallpaper_load
+    call wm_draw_all        ; refresh desktop
+    jmp  .done
+
+.usage:
+    mov  esi, wp_str_usage
+    mov  bl, 0x0E
+    call pm_puts
+.done:
+    popa
+    ret
+
+wp_str_usage: db 'Usage: wp <filename.bmp>', 13, 10, 0
+
+; ===========================================================================
+; pm_cmd_taskman - Open GUI Task Manager
+; ===========================================================================
+pm_cmd_taskman:
+    pusha
+    mov  al,  WM_TASKMAN
+    mov  ebx, 100
+    mov  ecx, 100
+    mov  edx, 500
+    mov  esi, 160
+    call wm_open
+    popa
+    ret
+
 

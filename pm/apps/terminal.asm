@@ -1,5 +1,5 @@
 ; ===========================================================================
-; pm/terminal.asm " terminal with backing text buffer, clean register usage
+; pm/terminal.asm - terminal with backing text buffer, clean register usage
 ; ===========================================================================
 [BITS 32]
 
@@ -8,26 +8,38 @@
 %define TERM_FG        0x0A
 %define TERM_BG        0x00
 %define TERM_PROMPT_C  0x0B
+%define TERM_MAX_WINS  4
 
 ; -
 ; term_init
 ; -
 term_init:
+    ; ECX = window id
     pusha
+    mov  [term_active_id], ecx
+    mov  eax, TERM_BUF_COLS * TERM_BUF_ROWS * 2
+    imul eax, ecx
     mov  edi, term_buf
+    add  edi, eax
     mov  ecx, (TERM_BUF_COLS * TERM_BUF_ROWS * 2 + 3) / 4
     xor  eax, eax
     rep  stosd
-    mov  dword [term_col], 0
-    mov  dword [term_row], 0
-    mov  dword [term_input_len], 0
+    
+    mov  ecx, [term_active_id]
+    imul ebx, ecx, 4
+    mov  dword [term_col + ebx], 0
+    mov  dword [term_row + ebx], 0
+    mov  dword [term_input_len + ebx], 0
+    
     call term_update_coords
 
     ; fill client area black before printing anything
-    mov  eax, [term_cx]
-    mov  ebx, [term_cy]
-    mov  ecx, [term_cw]
-    mov  edx, [term_ch]
+    mov  edi, [term_active_id]
+    imul edi, 4
+    mov  eax, [term_cx + edi]
+    mov  ebx, [term_cy + edi]
+    mov  ecx, [term_cw + edi]
+    mov  edx, [term_ch + edi]
     mov  esi, TERM_BG
     call fb_fill_rect
 
@@ -53,22 +65,30 @@ term_init:
     ret
 
 ; -
-; term_update_coords " recompute pixel coords and row/col counts from wm_table[0]
+; term_update_coords
 ; -
 term_update_coords:
     pusha
-    mov  eax, [wm_table + 0]    ; win_x
-    mov  ebx, [wm_table + 4]    ; win_y
-    mov  ecx, [wm_table + 8]    ; win_w
-    mov  edx, [wm_table + 12]   ; win_h
+    ; ECX = window id
+    imul edi, ecx, WM_STRIDE
+    add  edi, wm_table
+    mov  eax, [edi + 0]    ; win_x
+    mov  ebx, [edi + 4]    ; win_y
+    push ecx               ; save win_id
+    mov  ecx, [edi + 8]    ; win_w
+    mov  edx, [edi + 12]   ; win_h
     add  eax, 2
     add  ebx, WM_TITLE_H + 1
     sub  ecx, 4
     sub  edx, WM_TITLE_H + 3
-    mov  [term_cx], eax
-    mov  [term_cy], ebx
-    mov  [term_cw], ecx
-    mov  [term_ch], edx
+    
+    pop  edi               ; edi = win_id
+    push edi               ; save again
+    imul edi, 4
+    mov  [term_cx + edi], eax
+    mov  [term_cy + edi], ebx
+    mov  [term_cw + edi], ecx
+    mov  [term_ch + edi], edx
     shr  ecx, 3
     shr  edx, 3
     cmp  ecx, TERM_BUF_COLS
@@ -79,22 +99,30 @@ term_update_coords:
     jbe  .rows_ok
     mov  edx, TERM_BUF_ROWS
 .rows_ok:
-    mov  [term_cols], ecx
-    mov  [term_rows], edx
+    pop  edi               ; edi = win_id
+    imul edi, 4
+    mov  [term_cols + edi], ecx
+    mov  [term_rows + edi], edx
     popa
     ret
 
 ; -
-; term_buf_write " write AL=char DL=colour at [term_row][term_col]
+; term_buf_write
 ; -
 term_buf_write:
     pusha
-    ; offset = row*TERM_BUF_COLS*2 + col*2
-    mov  ecx, [term_row]
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    mov  ecx, [term_row + esi]
     imul ecx, TERM_BUF_COLS * 2
-    mov  edi, [term_col]
+    mov  edi, [term_col + esi]
     imul edi, 2
     add  ecx, edi
+    
+    mov  edi, TERM_BUF_COLS * TERM_BUF_ROWS * 2
+    imul edi, ebx
+    add  ecx, edi
+    
     mov  edi, term_buf
     add  edi, ecx
     mov  [edi],   al
@@ -103,15 +131,23 @@ term_buf_write:
     ret
 
 ; -
-; term_buf_scroll " shift all rows up by 1, zero last row
+; term_buf_scroll
 ; -
 term_buf_scroll:
     pusha
+    mov  ebx, [term_active_id]
+    mov  eax, TERM_BUF_COLS * TERM_BUF_ROWS * 2
+    imul eax, ebx
+    
     mov  esi, term_buf + (TERM_BUF_COLS * 2)
+    add  esi, eax
     mov  edi, term_buf
+    add  edi, eax
     mov  ecx, (TERM_BUF_ROWS - 1) * TERM_BUF_COLS * 2 / 4
     rep  movsd
+    
     mov  edi, term_buf + ((TERM_BUF_ROWS - 1) * TERM_BUF_COLS * 2)
+    add  edi, eax
     mov  ecx, TERM_BUF_COLS * 2 / 4
     xor  eax, eax
     rep  stosd
@@ -119,65 +155,79 @@ term_buf_scroll:
     ret
 
 ; -
-; term_redraw " recompute coords, fill black, replay buffer to screen
+; term_redraw
 ; -
 term_redraw:
     pusha
+    ; ECX is already win_id from wm_draw_dirty
+    mov  [term_draw_id], ecx
     call term_update_coords
 
     ; fill client area black
-    mov  eax, [term_cx]
-    mov  ebx, [term_cy]
-    mov  ecx, [term_cw]
-    mov  edx, [term_ch]
+    mov  esi, [term_draw_id]
+    imul esi, 4
+    mov  eax, [term_cx + esi]
+    mov  ebx, [term_cy + esi]
+    mov  ecx, [term_cw + esi]
+    mov  edx, [term_ch + esi]
     mov  esi, TERM_BG
     call fb_fill_rect
 
-    ; replay: row = 0..term_rows-1, col = 0..term_cols-1
+    ; replay
     mov  dword [term_ri], 0
 .rrow:
-    mov  eax, [term_rows]
+    mov  esi, [term_draw_id]
+    imul esi, 4
+    mov  eax, [term_rows + esi]
     cmp  [term_ri], eax
     jge  .rdone
     mov  dword [term_ci], 0
 .rcol:
-    mov  eax, [term_cols]
+    mov  esi, [term_draw_id]
+    imul esi, 4
+    mov  eax, [term_cols + esi]
     cmp  [term_ci], eax
     jge  .rnext_row
 
-    ; buf address = term_buf + ri*TERM_BUF_COLS*2 + ci*2
+    ; buf address = term_buf + win*SIZE + ri*COLS*2 + ci*2
     mov  eax, [term_ri]
     imul eax, TERM_BUF_COLS * 2
     mov  ecx, [term_ci]
     imul ecx, 2
     add  eax, ecx
-    add  eax, term_buf          ; EAX = cell ptr
+    
+    mov  ecx, [term_draw_id]
+    imul ecx, TERM_BUF_COLS * TERM_BUF_ROWS * 2
+    add  eax, ecx
+    
+    add  eax, term_buf
 
-    mov  al,  [eax]             ; AL = char  (NOTE: destroys upper EAX " that's ok, buf ptr no longer needed)
-    test al, al
+    mov  cl,  [eax]             ; CL = char
+    test cl, cl
     jz   .rskip
 
-    mov  [term_tmp_char], al    ; save char to memory " avoids ALL register aliasing
-    mov  dl, [eax+1]            ; wait " eax upper bytes corrupted. use offset calc instead.
-
-    ; EAX upper bytes were trashed by "mov al, [eax]" " recalculate ptr for colour byte
+    mov  [term_tmp_char], cl
+    
     mov  eax, [term_ri]
     imul eax, TERM_BUF_COLS * 2
     mov  ecx, [term_ci]
     imul ecx, 2
     add  eax, ecx
-    add  eax, term_buf + 1      ; +1 = colour byte
+    mov  ecx, [term_draw_id]
+    imul ecx, TERM_BUF_COLS * TERM_BUF_ROWS * 2
+    add  eax, ecx
+    add  eax, term_buf + 1
     mov  dl, [eax]              ; DL = colour
 
-    ; pixel x = ci*8 + term_cx
+    mov  esi, [term_draw_id]
+    imul esi, 4
     mov  ebx, [term_ci]
     imul ebx, 8
-    add  ebx, [term_cx]
+    add  ebx, [term_cx + esi]
 
-    ; pixel y = ri*8 + term_cy
     mov  ecx, [term_ri]
     imul ecx, 8
-    add  ecx, [term_cy]
+    add  ecx, [term_cy + esi]
 
     mov  al,  [term_tmp_char]
     mov  dh,  TERM_BG
@@ -194,11 +244,10 @@ term_redraw:
     ret
 
 ; -
-; term_tick " non-blocking key handler
+; term_tick
 ; -
 term_tick:
     pusha
-    ; search for focused terminal window
     mov  ecx, 0
 .fwin:
     cmp  ecx, WM_MAX_WINS
@@ -221,6 +270,7 @@ term_tick:
 
 .handle:
     mov  [term_win_id], ecx
+    mov  [term_active_id], ecx
     mov  byte [term_changed_this_tick], 0
 .handle_loop:
     call pm_getkey
@@ -240,17 +290,20 @@ term_tick:
     cmp  al, 127
     jge  .done
 
-    ; check input buffer not full
-    mov  ecx, [term_cols]
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    mov  ecx, [term_cols + esi]
     sub  ecx, 3
-    cmp  [term_input_len], ecx
+    cmp  [term_input_len + esi], ecx
     jge  .done
 
-    ; store in input buffer and echo
     mov  edi, term_input_buf
-    add  edi, [term_input_len]
+    mov  ecx, 128
+    imul ecx, ebx
+    add  edi, ecx
+    add  edi, [term_input_len + esi]
     mov  [edi], al
-    inc  dword [term_input_len]
+    inc  dword [term_input_len + esi]
     push edx
     mov  dl, TERM_FG
     call term_putchar_col
@@ -259,23 +312,32 @@ term_tick:
     jmp  .handle_loop
 
 .backspace:
-    cmp  dword [term_input_len], 0
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    cmp  dword [term_input_len + esi], 0
     je   .done
-    dec  dword [term_input_len]
-    dec  dword [term_col]
-    ; clear buffer cell
+    dec  dword [term_input_len + esi]
+    dec  dword [term_col + esi]
     push eax
     push edx
     xor  al, al
     mov  dl, TERM_BG
     call term_buf_write
-    ; erase on screen
-    mov  ebx, [term_col]
+    
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    mov  ebx, [term_col + esi]
     imul ebx, 8
-    add  ebx, [term_cx]
-    mov  ecx, [term_row]
+    add  ebx, [term_cx + esi]
+    
+    push ebx
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    mov  ecx, [term_row + esi]
     imul ecx, 8
-    add  ecx, [term_cy]
+    add  ecx, [term_cy + esi]
+    pop  ebx
+    
     mov  al, ' '
     mov  dl, TERM_BG
     mov  dh, TERM_BG
@@ -287,18 +349,31 @@ term_tick:
 
 .enter:
     call term_newline
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
     mov  edi, term_input_buf
-    mov  eax, [term_input_len]
+    mov  eax, 128
+    imul eax, ebx
+    add  edi, eax
+    
+    mov  eax, [term_input_len + esi]
     mov  byte [edi + eax], 0
-    mov  esi, term_input_buf
+    
+    mov  esi, edi
     mov  edi, pm_input_buf
-    mov  ecx, [term_input_len]
+    
+    mov  ebx, [term_active_id]
+    imul ebx, 4
+    mov  ecx, [term_input_len + ebx]
     mov  [pm_input_len], ecx
     rep  movsb
     mov  byte [edi], 0
     call pm_exec
-    mov  dword [term_input_len], 0
-    mov  dword [term_col], 0
+    
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    mov  dword [term_input_len + esi], 0
+    mov  dword [term_col + esi], 0
     call term_draw_prompt
     mov  byte [term_changed_this_tick], 1
     jmp  .handle_loop
@@ -311,7 +386,6 @@ term_tick:
     popa
     ret
 
-; local var for term_tick
 term_changed_this_tick: db 0
 term_win_id: dd 0
 
@@ -327,7 +401,7 @@ term_draw_prompt:
     ret
 
 ; -
-; term_putchar  AL=char (TERM_FG)
+; term_putchar
 ; -
 term_putchar:
     push edx
@@ -336,11 +410,8 @@ term_putchar:
     pop  edx
     ret
 
-; term_putchar_col  AL=char  DL=colour
 term_putchar_col:
     pusha
-
-    ; --- serial output (non-blocking) ---
     push edx
     push eax
     mov  dx, 0x3FD
@@ -354,33 +425,41 @@ term_putchar_col:
 .skip_serial_pm:
     pop  eax
     pop  edx
-    ; ---------------------
 
     cmp  al, 10
     je   .nl
     cmp  al, 13
     je   .cr
 
-    ; wrap if at end of line
-    mov  ecx, [term_cols]
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    mov  ecx, [term_cols + esi]
     dec  ecx
-    cmp  [term_col], ecx
+    cmp  [term_col + esi], ecx
     jge  .wrap
 
-    ; write to buffer
     call term_buf_write
 
-    ; draw to screen: EBX=x ECX=y AL=char DL=fg DH=bg
-    mov  ebx, [term_col]
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    mov  ebx, [term_col + esi]
     imul ebx, 8
-    add  ebx, [term_cx]
-    mov  ecx, [term_row]
+    add  ebx, [term_cx + esi]
+    
+    push ebx
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    mov  ecx, [term_row + esi]
     imul ecx, 8
-    add  ecx, [term_cy]
+    add  ecx, [term_cy + esi]
+    pop  ebx
+    
     mov  dh, TERM_BG
     call fb_draw_char
 
-    inc  dword [term_col]
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    inc  dword [term_col + esi]
     jmp  .done
 
 .wrap:
@@ -391,13 +470,15 @@ term_putchar_col:
     call term_newline
     jmp  .done
 .cr:
-    mov  dword [term_col], 0
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    mov  dword [term_col + esi], 0
 .done:
     popa
     ret
 
 ; -
-; term_puts  ESI=string (TERM_FG)
+; term_puts
 ; -
 term_puts:
     push edx
@@ -406,7 +487,7 @@ term_puts:
     pop  edx
     ret
 
-term_puts_colour:    ; ESI=str  DL=colour
+term_puts_colour:
     push eax
 .loop:
     mov  al, [esi]
@@ -424,7 +505,13 @@ term_puts_colour:    ; ESI=str  DL=colour
     inc  esi
     jmp  .loop
 .cr:
-    mov  dword [term_col], 0
+    push ebx
+    push esi
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    mov  dword [term_col + esi], 0
+    pop  esi
+    pop  ebx
     inc  esi
     jmp  .loop
 .done:
@@ -432,52 +519,55 @@ term_puts_colour:    ; ESI=str  DL=colour
     ret
 
 ; -
-; term_newline " advance row, scroll buffer+pixels when row reaches term_rows
+; term_newline
 ; -
 term_newline:
     pusha
-    mov  dword [term_col], 0
-    inc  dword [term_row]
-    mov  eax, [term_rows]
-    cmp  [term_row], eax
+    mov  ebx, [term_active_id]
+    imul esi, ebx, 4
+    mov  dword [term_col + esi], 0
+    inc  dword [term_row + esi]
+    mov  eax, [term_rows + esi]
+    cmp  [term_row + esi], eax
     jl   .done
 
-    ; scroll buffer
     call term_buf_scroll
-
-    ; erase cursor BEFORE pixel scroll so it doesn't get baked into framebuffer
     call cursor_erase
 
-    ; scroll pixels up 8px: copy rows cy+8..cy+ch-1 to cy..cy+ch-9
-    ; EDX must NOT be used as loop limit across mul " save to memory
-    mov  eax, [term_ch]
+    mov  ebx, [term_active_id]
+    imul edi, ebx, 4
+    mov  eax, [term_ch + edi]
     sub  eax, 8
-    mov  [term_scroll_lim], eax  ; pixel rows to copy
-    xor  esi, esi                ; pixel row offset
+    mov  [term_scroll_lim], eax
+    xor  esi, esi
 .sloop:
     cmp  esi, [term_scroll_lim]
     jge  .clrlast
 
-    ; src ptr = fb[cy + 8 + esi][cx]
-    mov  eax, [term_cy]
+    mov  ebx, [term_active_id]
+    imul edi, ebx, 4
+    
+    mov  eax, [term_cy + edi]
     add  eax, 8
     add  eax, esi
-    mul  dword [gfx_fb_pitch]   ; EDX trashed here " that's fine now
+    mul  dword [gfx_fb_pitch]
     add  eax, [gfx_fb_base]
-    add  eax, [term_cx]
-    mov  edi, eax               ; save src ptr
+    add  eax, [term_cx + edi]
+    
+    mov  [term_ci], eax
 
-    ; dst ptr = fb[cy + esi][cx]
-    mov  eax, [term_cy]
+    mov  eax, [term_cy + edi]
     add  eax, esi
-    mul  dword [gfx_fb_pitch]   ; EDX trashed again " fine
+    mul  dword [gfx_fb_pitch]
     add  eax, [gfx_fb_base]
-    add  eax, [term_cx]
+    add  eax, [term_cx + edi]
 
     push esi
-    mov  esi, edi               ; esi = src
-    mov  edi, eax               ; edi = dst
-    mov  ecx, [term_cw]
+    mov  esi, [term_ci]
+    mov  edi, eax
+    mov  ebx, [term_active_id]
+    imul ebx, 4
+    mov  ecx, [term_cw + ebx]
     rep  movsb
     pop  esi
 
@@ -485,20 +575,23 @@ term_newline:
     jmp  .sloop
 
 .clrlast:
-    mov  eax, [term_cx]
-    mov  ebx, [term_cy]
-    add  ebx, [term_ch]
+    mov  ebx, [term_active_id]
+    imul edi, ebx, 4
+    mov  eax, [term_cx + edi]
+    mov  ebx, [term_cy + edi]
+    add  ebx, [term_ch + edi]
     sub  ebx, 8
-    mov  ecx, [term_cw]
+    mov  ecx, [term_cw + edi]
     mov  edx, 8
     mov  esi, TERM_BG
     call fb_fill_rect
 
-    mov  eax, [term_rows]
+    mov  ebx, [term_active_id]
+    imul edi, ebx, 4
+    mov  eax, [term_rows + edi]
     dec  eax
-    mov  [term_row], eax
+    mov  [term_row + edi], eax
 
-    ; redraw cursor at its current position after scroll
     call cursor_save_bg
     call cursor_draw
 
@@ -509,19 +602,20 @@ term_newline:
 ; -
 ; Data
 ; -
-term_col:         dd 0
-term_row:         dd 0
-term_input_len:   dd 0
-term_input_buf:   times 128 db 0
+term_active_id:   dd 0
+term_draw_id:     dd 0
+term_col:         times 4 dd 0
+term_row:         times 4 dd 0
+term_input_len:   times 4 dd 0
+term_input_buf:   times 4*128 db 0
 
-term_cx:          dd 2
-term_cy:          dd 20
-term_cw:          dd 476
-term_ch:          dd 318
-term_cols:        dd 58
-term_rows:        dd 39
+term_cx:          times 4 dd 2
+term_cy:          times 4 dd 20
+term_cw:          times 4 dd 476
+term_ch:          times 4 dd 318
+term_cols:        times 4 dd 58
+term_rows:        times 4 dd 39
 
-; loop counter temporaries (avoids register aliasing in replay)
 term_ri:          dd 0
 term_ci:          dd 0
 term_tmp_char:    db 0

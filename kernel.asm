@@ -1174,10 +1174,11 @@ unreal_init:
 ; -
 ; 32-bit components  [BITS 32]  (included last - never reached by 16-bit flow)
 ; -
-%include "pm/pm_shell.asm"
-%include "pm/gfx.asm"
-%include "pm/font.asm"
-%include "pm/irq.asm"
-%include "pm/bios_disk.asm"
-%include "pm/fs_data.asm"
-%include "pm/wm_screenshot.asm"
+%include "pm/shell/pm_shell.asm"
+%include "pm/gui/gfx.asm"
+%include "pm/gui/font.asm"
+%include "pm/core/irq.asm"
+%include "pm/drivers/bios_disk.asm"
+%include "pm/core/fs_data.asm"
+%include "pm/gui/wm_screenshot.asm"
+%include "pm/drivers/speaker.asm"

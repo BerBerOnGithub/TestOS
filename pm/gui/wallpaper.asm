@@ -245,3 +245,4 @@ wp_h:        dd 0
 wp_stride:   dd 0
 wp_pixoff:   dd 0
 wp_filename: db 'wallpaper', 0
+             times 22 db 0

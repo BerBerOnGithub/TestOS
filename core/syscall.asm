@@ -14,6 +14,10 @@
 ;   AH=0x07  print_int    CX = signed int16
 ;   AH=0x09  print_int32  CX = high word, DX = low word
 ;   AH=0x0A  getkey       -> AL = ASCII key
+;   AH=0x0B  uptime       -> CX:DX = 32-bit ticks since boot
+;   AH=0x0C  delay        DX = ticks to wait
+;   AH=0x0D  beep         BX = freq (Hz), CX = duration (ticks)
+;   AH=0x0E  fexists      DS:SI = filename -> AL=1 if found
 ; ===========================================================================
 
 syscall_handler:
@@ -58,6 +62,14 @@ syscall_handler:
     je   .print_int32
     cmp  ah, 0x0A
     je   .getkey
+    cmp  ah, 0x0B
+    je   .uptime
+    cmp  ah, 0x0C
+    je   .delay
+    cmp  ah, 0x0D
+    je   .beep
+    cmp  ah, 0x0E
+    je   .fexists
     jmp  .done
 
 .print_str:
@@ -164,6 +176,122 @@ syscall_handler:
     xor  ah, ah
     int  0x16
     mov  [sc_ax], al
+    jmp  .done
+
+.uptime:
+    xor  ah, ah
+    int  0x1A                ; Get current ticks in CX:DX
+    sub  dx, [boot_ticks_lo]
+    sbb  cx, [boot_ticks_hi]
+    mov  [sc_cx], cx         ; High word
+    mov  [sc_dx], dx         ; Low word
+    jmp  .done
+
+.delay:
+    mov  cx, [sc_dx]         ; ticks to wait
+    xor  ah, ah
+    int  0x1A
+    add  dx, cx              ; target = current + duration
+    ; Simple blocking wait (16-bit safe)
+.delay_lp:
+    push dx
+    xor  ah, ah
+    int  0x1A
+    pop  bx                  ; BX = target
+    cmp  dx, bx
+    jb   .delay_lp           ; wait until current DX >= target
+    jmp  .done
+
+.beep:
+    mov  bx, [sc_bx]         ; Frequency in Hz
+    cmp  bx, 20
+    jb   .done               ; Safety check
+    mov  ax, 0x34DD          ; Divisor low (1193180)
+    mov  dx, 0x0012          ; Divisor high
+    div  bx                  ; AX = divisor
+    mov  bx, ax              ; BX = divisor
+
+    ; Set PIT Channel 2
+    mov  al, 0xB6
+    out  0x43, al
+    mov  al, bl
+    out  0x42, al
+    mov  al, bh
+    out  0x42, al
+
+    ; Speaker ON
+    in   al, 0x61
+    or   al, 0x03
+    out  0x61, al
+
+    ; Wait for duration (CX ticks)
+    xor  ah, ah
+    int  0x1A
+    mov  di, dx              ; di = start ticks (low)
+    mov  cx, [sc_cx]         ; cx = duration
+.beep_lp:
+    xor  ah, ah
+    int  0x1A
+    mov  ax, dx
+    sub  ax, di              ; ax = current - start
+    cmp  ax, cx
+    jb   .beep_lp
+
+    ; Speaker OFF
+    in   al, 0x61
+    and  al, 0xFC
+    out  0x61, al
+    jmp  .done
+
+.fexists:
+    ; Search filesystem for name at [sc_ds:sc_si]
+    mov  ax, [ss:sc_ds]      ; Use SS: to be safe
+    mov  gs, ax              ; GS = app's segment
+    mov  si, [ss:sc_si]      ; SI = app's offset
+    
+    mov  ax, 0x2000          ; FS_SEG
+    mov  es, ax
+    mov  cx, [es:4]          ; File count
+    test cx, cx
+    jz   .fe_none
+    mov  di, 6               ; DIR_OFFSET
+
+.fe_lp:
+    push cx
+    push di
+    push si                  ; save start of app name
+
+    mov  cx, 16              ; MAX_NAME_LEN
+.fe_cmp:
+    mov  al, [gs:si]         ; Read from app segment via GS
+    mov  ah, [es:di]         ; Read from FS (ES=0x2000)
+    
+    cmp  al, ah
+    jne  .fe_mismatch
+    
+    test al, al              ; hit null terminator in both?
+    jz   .fe_found           ; match!
+    
+    inc  si
+    inc  di
+    loop .fe_cmp
+
+.fe_found:
+    pop  si
+    pop  di
+    pop  cx
+    mov  byte [ss:sc_ax], 1  ; Found!
+    jmp  .done
+
+.fe_mismatch:
+    pop  si
+    pop  di
+    pop  cx
+    add  di, 24              ; ENTRY_SIZE
+    loop .fe_lp
+
+.fe_none:
+    mov  byte [ss:sc_ax], 0  ; Not found
     jmp  .done
 
 .done:

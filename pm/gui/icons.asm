@@ -20,6 +20,16 @@ icons_init:
     jge  .done
     imul edi, ecx, ICON_STRIDE
     add  edi, icon_table
+
+    ; --- NEW: Allocate pixel buffer dynamically ---
+    push edi
+    mov  ecx, ICON_SZ * ICON_SZ
+    mov  edx, icn_tag
+    call kmalloc
+    pop  edi
+    jc   .next               ; skip if alloc fails
+    mov  [edi+8], eax        ; store pointer in icon_table
+
     mov  esi, [edi+20]
     push edi
     call fs_pm_find
@@ -307,9 +317,6 @@ icn_buf:           dd 0
 icn_cx:            dd 0
 icn_cy:            dd 0
 
-icon_pixels_term:  times (ICON_SZ*ICON_SZ) db ICON_TRANSP
-icon_pixels_clock: times (ICON_SZ*ICON_SZ) db ICON_TRANSP
-icon_pixels_files: times (ICON_SZ*ICON_SZ) db ICON_TRANSP
 
 icon_lbl_term:  db 'Terminal', 0
 icon_lbl_clock: db 'Clock', 0
@@ -318,12 +325,13 @@ icon_lbl_files: db 'Files', 0
 icon_fn_term:   db 'icon_term', 0
 icon_fn_clock:  db 'icon_clock', 0
 icon_fn_files:  db 'icon_files', 0
+icn_tag:        db 'desktop_icon', 0
 
 icon_table:
-    dd 39,  20,  icon_pixels_term
+    dd 39,  20,  0           ; Pointer will be kmalloc'd
     db 0, 0, 0, 0
     dd icon_lbl_term,  icon_fn_term
 
-    dd 39,  78, icon_pixels_files
+    dd 39,  78, 0           ; Pointer will be kmalloc'd
     db 2, 0, 0, 0
     dd icon_lbl_files, icon_fn_files

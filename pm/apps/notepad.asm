@@ -6,7 +6,24 @@
 ; - notepad_init
 notepad_init:
     pusha
+    mov  ecx, 4096
+    mov  edx, np_buf_tag
+    call kmalloc
+    mov  [notepad_buf_ptr], eax
     mov  dword [notepad_len], 0
+    popa
+    ret
+
+; - notepad_exit
+notepad_exit:
+    pusha
+    mov  eax, [notepad_buf_ptr]
+    test eax, eax
+    jz   .done
+    mov  edx, np_buf_tag
+    call kfree
+    mov  dword [notepad_buf_ptr], 0
+.done:
     popa
     ret
 
@@ -71,7 +88,7 @@ notepad_draw:
     mov  [np_win_x], eax
     mov  [np_win_w], ecx
 
-    mov  esi, notepad_buf
+    mov  esi, [notepad_buf_ptr]
     mov  edi, [notepad_len]
 
 .txt_loop:
@@ -186,7 +203,7 @@ notepad_tick:
     cmp  ebx, 4095
     jge  .keyloop
     
-    mov  edi, notepad_buf
+    mov  edi, [notepad_buf_ptr]
     add  edi, ebx
     mov  [edi], al
     inc  dword [notepad_len]
@@ -197,7 +214,7 @@ notepad_tick:
     mov  ebx, [notepad_len]
     cmp  ebx, 4095
     jge  .keyloop
-    mov  edi, notepad_buf
+    mov  edi, [notepad_buf_ptr]
     add  edi, ebx
     mov  byte [edi], 10
     inc  dword [notepad_len]
@@ -216,7 +233,7 @@ notepad_tick:
     mov  esi, np_filename
     call fsd_find
     jc   .keyloop           ; file doesn't exist
-    mov  edi, notepad_buf
+    mov  edi, [notepad_buf_ptr]
     call fsd_read_file
     mov  [notepad_len], ecx
     mov  byte [np_changed_this_tick], 1
@@ -226,7 +243,8 @@ notepad_tick:
     mov  esi, np_filename
     call fsd_delete         ; blind fire delete to clear space
     mov  esi, np_filename
-    mov  dword [fsd_create_data], notepad_buf
+    mov  eax, [notepad_buf_ptr]
+    mov  dword [fsd_create_data], eax
     mov  ecx, [notepad_len]
     call fsd_create
     mov  byte [np_changed_this_tick], 1
@@ -254,6 +272,7 @@ np_cur_y: dd 0
 np_win_x: dd 0
 np_win_w: dd 0
 notepad_len:  dd 0
-notepad_buf:  times 4096 db 0
+notepad_buf_ptr: dd 0
 np_str_help:   db '[F2] Load   [F3] Save    File: note.txt', 0
 np_filename:   db 'note.txt', 0
+np_buf_tag:    db 'notepad_buf', 0

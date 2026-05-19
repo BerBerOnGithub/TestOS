@@ -161,6 +161,7 @@ vbe_init:
 
     ; - Step 5: Set the mode (INT 10h AX=4F02h, BX=mode|0x4000) -
     ; OR with 0x4000 to select linear framebuffer, bit 15 clear = clear VRAM
+    mov  [vbe_mode], cx
     mov  bx, cx
     or   bx, 0x4000
     mov  ax, 0x4F02
@@ -199,6 +200,7 @@ vbe_bpp:      db 0
 vbe_width:    dw 0
 vbe_height:   dw 0
 vbe_pitch:    dw 0
+vbe_mode:     dw 0
 vbe_physbase: dd 0
 
 vbe_str_fail: db ' [VBE] No 640x480x8 LFB mode found. Falling back to text mode.', 0

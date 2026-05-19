@@ -29,7 +29,18 @@ pm_probe_rows:  dd 0
 pm_probe_cols:  dd 0
 gfx_dirty:   db 0
 scr_pending: db 0
+scr_capture_ptr: dd 0
+scr_buf_ptr:     dd 0
 si_total_mb: dd 0
+
+; Terminal Constants
+%define TERM_BUF_COLS  64
+%define TERM_BUF_ROWS  48
+%define TERM_FG        0x0A
+%define TERM_BG        0x00
+%define TERM_PROMPT_C  0x0B
+%define TERM_MAX_WINS  8
+term_buf_ptrs:    times 8 dd 0
 wp_loaded:   db 0
 si_tmp:      dq 0
 si_cpu_brand: times 49 db 0
@@ -124,8 +135,13 @@ pm_str_cmd_browser:  db 'browser', 0
 pm_str_pfx_beep:     db 'beep', 0
 pm_str_pfx_wp:       db 'wp', 0
 pm_str_cmd_taskman:    db 'taskman', 0
-pm_str_cmd_paint:     db 'paint', 0
 pm_str_cmd_shutdown: db 'shutdown', 0
+pm_str_cmd_paint:     db 'paint', 0
+pm_str_cmd_usbinfo:   db 'usbinfo', 0
+pm_str_cmd_heaptest:  db 'heaptest', 0
+pm_str_cmd_crash:     db 'crash', 0
+pm_str_cmd_vesatest:  db 'vesatest', 0
+pm_str_cmd_vesalist:  db 'vesalist', 0
 pm_str_beep_usage:   db 'Usage: beep <freq_hz> <duration_ticks>', 13, 10, 0
 si_str_cpu:          db 'CPU:', 0
 
@@ -176,6 +192,7 @@ pm_str_help_text:
     db ' | wp <name>            | set desktop wallpaper      |', 13, 10
     db ' | taskman              | open task manager          |', 13, 10
     db ' | shutdown             | power off system via ACPI  |', 13, 10
+    db ' | usbinfo              | show USB status            |', 13, 10
     db ' | exit                 | return to real mode        |', 13, 10
     db ' +----------------------+----------------------------+', 13, 10, 10, 0
 

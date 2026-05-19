@@ -30,11 +30,39 @@ PAINT_BMP_SIZE  equ (PAINT_BMP_OFF + PAINT_BMP_PIX)   ; total file size
 ; - paint_init
 paint_init:
     pusha
-    mov  edi, PAINT_BUF
+    ; Allocate canvas if not present
+    mov  eax, [paint_canvas_ptr]
+    test eax, eax
+    jnz  .already_allocated
+    
+    mov  ecx, (PAINT_CW * PAINT_CH)
+    mov  edx, paint_canvas_tag
+    call kmalloc
+    jc   .fail_alloc
+    mov  [paint_canvas_ptr], eax
+
+.already_allocated:
+    mov  edi, [paint_canvas_ptr]
     mov  ecx, (PAINT_CW * PAINT_CH) / 4
     xor  eax, eax
     rep  stosd
     mov  byte [paint_color], 7
+    popa
+    ret
+.fail_alloc:
+    popa
+    ret
+
+; - paint_exit
+paint_exit:
+    pusha
+    mov  eax, [paint_canvas_ptr]
+    test eax, eax
+    jz   .done
+    mov  edx, paint_canvas_tag
+    call kfree
+    mov  dword [paint_canvas_ptr], 0
+.done:
     popa
     ret
 
@@ -70,6 +98,10 @@ paint_draw:
     call fb_draw_string
 
     ; blit canvas buffer to shadow framebuffer
+    mov  esi, [paint_canvas_ptr]
+    test esi, esi
+    jz   .blit_done
+
     mov  dword [paint_tmp_row], 0
 .blit:
     mov  eax, [paint_tmp_row]
@@ -82,7 +114,7 @@ paint_draw:
     imul ebx, 640
     add  edi, ebx
     add  edi, [paint_tmp_x]
-    mov  esi, PAINT_BUF
+    mov  esi, [paint_canvas_ptr]
     mov  ebx, [paint_tmp_row]
     imul ebx, PAINT_CW
     add  esi, ebx
@@ -198,8 +230,16 @@ paint_tick:
     mov  esi, paint_filename
     call fsd_find
     jc   .keyloop
+    
+    ; allocate BMP scratch buffer on demand
+    mov  ecx, PAINT_BMP_SIZE
+    mov  edx, paint_bmp_tag
+    call kmalloc
+    jc   .keyloop
+    mov  [paint_bmp_ptr], eax
+
     ; read BMP into scratch buffer
-    mov  edi, PAINT_BMP_BUF
+    mov  edi, [paint_bmp_ptr]
     call fsd_read_file
     ; decode: pixel data starts at PAINT_BMP_OFF, stored bottom-up
     ; row 0 of canvas = last row in BMP, row (CH-1) = first row in BMP
@@ -212,11 +252,12 @@ paint_tick:
     mov  ebx, PAINT_CH - 1
     sub  ebx, eax
     imul ebx, PAINT_CW
-    add  ebx, PAINT_BMP_BUF + PAINT_BMP_OFF
+    add  ebx, [paint_bmp_ptr]
+    add  ebx, PAINT_BMP_OFF
     ; dst: canvas row 'row'
     mov  ecx, eax
     imul ecx, PAINT_CW
-    add  ecx, PAINT_BUF
+    add  ecx, [paint_canvas_ptr]
     ; copy one row
     push esi
     push edi
@@ -229,54 +270,53 @@ paint_tick:
     inc  dword [paint_tmp_row]
     jmp  .load_row
 .load_done:
+    ; free BMP buffer
+    mov  eax, [paint_bmp_ptr]
+    call kfree
+    mov  dword [paint_bmp_ptr], 0
+
     mov  ecx, [paint_tmp_id]
     call wm_invalidate
     jmp  .keyloop
 .save:
+    ; allocate BMP scratch buffer on demand
+    mov  ecx, PAINT_BMP_SIZE
+    mov  edx, paint_bmp_tag
+    call kmalloc
+    jc   .keyloop
+    mov  [paint_bmp_ptr], eax
+
     ; --- build BMP in scratch buffer ---
     ; zero the header area
-    mov  edi, PAINT_BMP_BUF
+    mov  edi, [paint_bmp_ptr]
     mov  ecx, PAINT_BMP_OFF / 4
     xor  eax, eax
     rep  stosd
+    
+    ; pointer for header writing
+    mov  ebx, [paint_bmp_ptr]
+
     ; BITMAPFILEHEADER (14 bytes)
-    ;   bfType      = 'BM'  (0x4D42)
-    ;   bfSize      = total file size
-    ;   bfReserved1 = 0
-    ;   bfReserved2 = 0
-    ;   bfOffBits   = offset to pixel data = PAINT_BMP_OFF
-    mov  word  [PAINT_BMP_BUF + 0],  0x4D42
-    mov  dword [PAINT_BMP_BUF + 2],  PAINT_BMP_SIZE
-    mov  dword [PAINT_BMP_BUF + 6],  0
-    mov  dword [PAINT_BMP_BUF + 10], PAINT_BMP_OFF
+    mov  word  [ebx + 0],  0x4D42
+    mov  dword [ebx + 2],  PAINT_BMP_SIZE
+    mov  dword [ebx + 6],  0
+    mov  dword [ebx + 10], PAINT_BMP_OFF
     ; BITMAPINFOHEADER (40 bytes) at offset 14
-    ;   biSize          = 40
-    ;   biWidth         = PAINT_CW
-    ;   biHeight        = PAINT_CH  (positive = bottom-up)
-    ;   biPlanes        = 1
-    ;   biBitCount      = 8
-    ;   biCompression   = 0 (BI_RGB)
-    ;   biSizeImage     = 0 (allowed for BI_RGB)
-    ;   biXPelsPerMeter = 0
-    ;   biYPelsPerMeter = 0
-    ;   biClrUsed       = 256
-    ;   biClrImportant  = 0
-    mov  dword [PAINT_BMP_BUF + 14], 40
-    mov  dword [PAINT_BMP_BUF + 18], PAINT_CW
-    mov  dword [PAINT_BMP_BUF + 22], PAINT_CH
-    mov  word  [PAINT_BMP_BUF + 26], 1
-    mov  word  [PAINT_BMP_BUF + 28], 8
-    mov  dword [PAINT_BMP_BUF + 30], 0
-    mov  dword [PAINT_BMP_BUF + 34], 0
-    mov  dword [PAINT_BMP_BUF + 38], 0
-    mov  dword [PAINT_BMP_BUF + 42], 0
-    mov  dword [PAINT_BMP_BUF + 46], 256
-    mov  dword [PAINT_BMP_BUF + 50], 0
+    mov  dword [ebx + 14], 40
+    mov  dword [ebx + 18], PAINT_CW
+    mov  dword [ebx + 22], PAINT_CH
+    mov  word  [ebx + 26], 1
+    mov  word  [ebx + 28], 8
+    mov  dword [ebx + 30], 0
+    mov  dword [ebx + 34], 0
+    mov  dword [ebx + 38], 0
+    mov  dword [ebx + 42], 0
+    mov  dword [ebx + 46], 256
+    mov  dword [ebx + 50], 0
     ; --- write 256-color CGA palette (BGRA, 4 bytes each) at offset 54 ---
-    ; Each entry: B G R 0x00
-    ; We only define 16 CGA colors; entries 16-255 stay zero (black)
     mov  esi, paint_cga_palette
-    mov  edi, PAINT_BMP_BUF + PAINT_BMP_HDR
+    mov  edi, [paint_bmp_ptr]
+    add  edi, PAINT_BMP_HDR
     mov  ecx, 16
 .pal_loop:
     mov  al, [esi]       ; B
@@ -301,11 +341,12 @@ paint_tick:
     mov  ebx, PAINT_CH - 1
     sub  ebx, eax
     imul ebx, PAINT_CW
-    add  ebx, PAINT_BUF
+    add  ebx, [paint_canvas_ptr]
     ; dst BMP pixel row
     mov  ecx, eax
     imul ecx, PAINT_CW
-    add  ecx, PAINT_BMP_BUF + PAINT_BMP_OFF
+    add  ecx, [paint_bmp_ptr]
+    add  ecx, PAINT_BMP_OFF
     push esi
     push edi
     mov  esi, ebx
@@ -321,9 +362,16 @@ paint_tick:
     mov  esi, paint_filename
     call fsd_delete
     mov  esi, paint_filename
-    mov  dword [fsd_create_data], PAINT_BMP_BUF
+    mov  eax, [paint_bmp_ptr]
+    mov  [fsd_create_data], eax
     mov  ecx, PAINT_BMP_SIZE
     call fsd_create
+
+    ; free BMP buffer
+    mov  eax, [paint_bmp_ptr]
+    mov  edx, paint_bmp_tag
+    call kfree
+    mov  dword [paint_bmp_ptr], 0
     jmp  .keyloop
 .keys_done:
     ; re-derive edi (FS calls may have clobbered it)
@@ -417,7 +465,10 @@ paint_tick:
     jge  .bline_skip
     imul eax, PAINT_CW
     add  eax, ebx
-    add  eax, PAINT_BUF
+    mov  edx, [paint_canvas_ptr]
+    test edx, edx
+    jz   .bline_skip
+    add  eax, edx
     movzx ebx, byte [paint_color]
     mov  bl, [paint_colors + ebx]
     mov  [eax], bl
@@ -489,6 +540,10 @@ paint_tick:
 paint_str_help:  db '[F2] Load  [F3] Save  File: canvas.bmp', 0
 paint_filename:  db 'canvas.bmp', 0
 paint_colors:   db 0x00, 0x0C, 0x0A, 0x01, 0x0E, 0x0B, 0x0D, 0x0F
+paint_canvas_tag: db 'paint_canvas', 0
+paint_bmp_tag:    db 'paint_bmp_scratch', 0
+paint_canvas_ptr: dd 0
+paint_bmp_ptr:    dd 0
 
 ; CGA 16-color palette in BGR order (for BMP palette table)
 ; Index: 0=black 1=blue 2=green 3=cyan 4=red 5=magenta 6=brown 7=lt.gray

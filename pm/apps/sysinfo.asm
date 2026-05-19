@@ -259,6 +259,75 @@ pm_cmd_sysinfo:
     call pm_puts
     call pm_newline
 
+    mov  esi, sysinfo_mem_free
+    mov  bl, 0x07
+    call pm_puts
+    mov  eax, [heap_total_free]
+    call pm_print_uint
+    mov  esi, sysinfo_bytes
+    call pm_puts
+    call pm_newline
+
+    mov  esi, sysinfo_mem_used
+    mov  bl, 0x07
+    call pm_puts
+    mov  eax, 33554432          ; 32MB HEAP_SIZE
+    sub  eax, [heap_total_free]
+    call pm_print_uint
+    mov  esi, sysinfo_bytes
+    call pm_puts
+    call pm_newline
+
+    ; --- NEW: Heap Usage Bar ---
+    mov  esi, sysinfo_mem_bar_lbl
+    mov  bl, 0x07
+    call pm_puts
+    
+    ; calculate percentage: (used * 20) / total  (for a 20-char bar)
+    mov  eax, 33554432
+    sub  eax, [heap_total_free] ; EAX = used
+    imul eax, 20
+    mov  ebx, 33554432
+    xor  edx, edx
+    div  ebx                    ; EAX = number of '#' chars
+    
+    mov  ecx, eax               ; count of '#'
+    mov  esi, sysinfo_mem_bar_start
+    call pm_puts
+    
+.bar_used:
+    test ecx, ecx
+    jz   .bar_free_setup
+    mov  al, '#'
+    mov  bl, 0x0A               ; Green
+    call pm_putc
+    dec  ecx
+    jmp  .bar_used
+
+.bar_free_setup:
+    mov  ecx, 20
+    mov  eax, 33554432
+    sub  eax, [heap_total_free]
+    imul eax, 20
+    mov  ebx, 33554432
+    xor  edx, edx
+    div  ebx
+    sub  ecx, eax               ; ECX = 20 - used
+    
+.bar_free:
+    test ecx, ecx
+    jz   .bar_end
+    mov  al, '-'
+    mov  bl, 0x08               ; Dark Grey
+    call pm_putc
+    dec  ecx
+    jmp  .bar_free
+
+.bar_end:
+    mov  esi, sysinfo_mem_bar_end
+    call pm_puts
+    call pm_newline
+
 .tsc:
     ; --- TSC ---
     mov  esi, sysinfo_tsc_hdr
@@ -325,8 +394,14 @@ sysinfo_not_found:  db '  None found', 0
 
 sysinfo_mem_hdr:    db ' [Memory]', 13, 10, 0
 sysinfo_mem_total:  db '  Total:   ', 0
+sysinfo_mem_free:   db '  Free Heap: ', 0
+sysinfo_mem_used:   db '  Used Heap: ', 0
 sysinfo_kb:         db ' KB', 0
 sysinfo_mb:         db ' MB', 0
+sysinfo_bytes:      db ' bytes', 0
+sysinfo_mem_bar_lbl:   db '  Status:  ', 0
+sysinfo_mem_bar_start: db '[', 0
+sysinfo_mem_bar_end:   db ']', 0
 
 sysinfo_tsc_hdr:    db ' [TSC]', 13, 10, 0
 sysinfo_tsc_avail:  db '  Available', 13, 10, 0

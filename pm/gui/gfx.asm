@@ -37,8 +37,10 @@ gfx_init:
     push ecx
     push edi
 
+    call vesa_init
+
     ; cache MMIO address for flush (write-only)
-    mov  eax, [vbe_physbase]
+    mov  eax, [vesa_fb_phys]
     mov  [gfx_hw_base], eax
 
     ; Load standard 16-color VGA palette into DAC 0-15

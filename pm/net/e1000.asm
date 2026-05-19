@@ -554,26 +554,8 @@ e1000_send_frame:
     push esi
     push edi
 
-    ; checkpoint S
-    push eax
-    push ebx
-    mov  al, 'S'
-    mov  bl, 0x0E
-    call pm_putc
-    pop  ebx
-    pop  eax
-
     cmp  byte [e1000_ready], 0
     je   .err
-
-    ; checkpoint R
-    push eax
-    push ebx
-    mov  al, 'R'
-    mov  bl, 0x0A
-    call pm_putc
-    pop  ebx
-    pop  eax
 
     mov  [e1000_tx_len_tmp], cx
 
@@ -588,15 +570,6 @@ e1000_send_frame:
 
     test byte [edi + 12], E1000_TXD_STAT_DD
     jz   .err
-
-    ; checkpoint D
-    push eax
-    push ebx
-    mov  al, 'D'
-    mov  bl, 0x0B
-    call pm_putc
-    pop  ebx
-    pop  eax
 
     ; TX buffer address
     mov  eax, ebx
@@ -620,38 +593,6 @@ e1000_send_frame:
     mov  byte [edi + 13], 0
     mov  word [edi + 14], 0
 
-    ; checkpoint C + print len and buf address
-    push eax
-    push ebx
-    mov  al, 'C'
-    mov  bl, 0x0D
-    call pm_putc
-
-    ; print " L="
-    mov  al, 'L'
-    mov  bl, 0x07
-    call pm_putc
-    mov  al, '='
-    call pm_putc
-
-    ; print length (word at [edi+8])
-    movzx eax, word [edi + 8]
-    call pm_print_hex32
-
-    ; print " B="
-    mov  al, 'B'
-    call pm_putc
-    mov  al, '='
-    call pm_putc
-
-    ; print buffer address (dword at [edi+0])
-    mov  eax, [edi]
-    call pm_print_hex32
-
-    call pm_newline
-    pop  ebx
-    pop  eax
-
     ; bump tail
     inc  ebx
     cmp  ebx, E1000_NUM_TX_DESC
@@ -662,26 +603,10 @@ e1000_send_frame:
     mov  edx, E1000_TDT
     call e1000_mmio_write
 
-    ; checkpoint W
-    push eax
-    push ebx
-    mov  al, 'W'
-    mov  bl, 0x0F
-    call pm_putc
-    pop  ebx
-    pop  eax
-
     clc
     jmp  .sfDone
 
 .err:
-    push eax
-    push ebx
-    mov  al, 'E'
-    mov  bl, 0x0C
-    call pm_putc
-    pop  ebx
-    pop  eax
     stc
 
 .sfDone:

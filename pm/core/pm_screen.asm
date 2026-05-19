@@ -71,18 +71,49 @@ serial_print:
     mov  al, [esi]
     test al, al
     jz   .done
-    ; wait for transmit buffer empty (bit 5 of Line Status Register)
-.wait:
-    mov  dx, 0x3FD
-    in   al, dx
-    test al, 0x20
-    jz   .wait
-    mov  dx, 0x3F8
-    mov  al, [esi]
-    out  dx, al
+    call serial_putchar
     inc  esi
     jmp  .loop
 .done:
     pop  edx
     pop  eax
     ret
+
+; serial_putchar - print AL to COM1
+serial_putchar:
+    push edx
+    push eax
+.wait:
+    mov  dx, 0x3FD
+    in   al, dx
+    test al, 0x20
+    jz   .wait
+    mov  dx, 0x3F8
+    pop  eax
+    out  dx, al
+    pop  edx
+    ret
+
+; serial_print_hex32 - print EAX as 8 hex digits to COM1
+serial_print_hex32:
+    pusha
+    mov  ecx, 8
+.loop:
+    rol  eax, 4
+    mov  ebx, eax
+    and  ebx, 0x0F
+    cmp  ebx, 10
+    jl   .digit
+    add  bl, 'A' - 10
+    jmp  .out
+.digit:
+    add  bl, '0'
+.out:
+    push eax
+    mov  al, bl
+    call serial_putchar
+    pop  eax
+    loop .loop
+    popa
+    ret
+

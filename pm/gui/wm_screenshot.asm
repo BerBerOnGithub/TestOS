@@ -9,6 +9,7 @@ scr_counter:    dd 0
 scr_name:       db 'scr0000.bmp', 0
 scr_msg_ok_save: db 'Screenshot saved!', 0
 scr_msg_full:    db 'Disk full!', 0
+tag_scr_cap:     db 'screenshot_cap', 0
 
 notify_timer:   dd 0
 notify_msg:     dd 0
@@ -27,9 +28,21 @@ scr_counter_init:
 ; -
 wm_screenshot_capture:
     pusha
-    ; Copy GFX_SHADOW (0x1400000) to SCR_CAPTURE (0x1500000)
+    ; Allocate capture buffer if not present
+    mov  eax, [scr_capture_ptr]
+    test eax, eax
+    jnz  .already_allocated
+    
+    mov  ecx, 307200             ; 640*480*1
+    mov  edx, tag_scr_cap
+    call kmalloc
+    jc   .fail
+    mov  [scr_capture_ptr], eax
+
+.already_allocated:
+    ; Copy GFX_SHADOW (0x1400000) to [scr_capture_ptr]
     mov  esi, 0x1400000
-    mov  edi, 0x1500000
+    mov  edi, [scr_capture_ptr]
     mov  ecx, 307200 / 4
     rep  movsd
     
@@ -38,7 +51,15 @@ wm_screenshot_capture:
     call wm_notify
     popa
     ret
+
+.fail:
+    mov  esi, .msg_fail
+    call wm_notify
+    popa
+    ret
+
 .msg db 'Screen captured!', 0
+.msg_fail db 'Out of memory for screenshot!', 0
 
 ; -
 ; wm_notify - Show a temporary notification message

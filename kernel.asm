@@ -1180,6 +1180,7 @@ unreal_init:
 %include "pm/gui/gfx.asm"
 %include "pm/gui/font.asm"
 %include "pm/core/irq.asm"
+%include "pm/core/panic.asm"
 %include "pm/drivers/bios_disk.asm"
 %include "pm/core/fs_data.asm"
 %include "pm/gui/wm_screenshot.asm"

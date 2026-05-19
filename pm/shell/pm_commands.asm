@@ -34,16 +34,26 @@ pm_cmd_help:
 ; -
 pm_cmd_clear:
     pusha
-    ; zero the entire terminal buffer (64 cols * 48 rows * 2 bytes)
-    mov  edi, term_buf
-    mov  ecx, (64 * 48 * 2 + 3) / 4
+    mov  ecx, [term_active_id]
+    shl  ecx, 2
+    mov  edi, [term_buf_ptrs + ecx]
+    test edi, edi
+    jz   .done
+    
+    mov  ecx, (TERM_BUF_COLS * TERM_BUF_ROWS * 2 + 3) / 4
     xor  eax, eax
     rep  stosd
-    ; reset cursor to top-left
-    mov  dword [term_col], 0
-    mov  dword [term_row], 0
+    
+    ; reset cursor for active terminal
+    mov  ebx, [term_active_id]
+    shl  ebx, 2
+    mov  dword [term_col + ebx], 0
+    mov  dword [term_row + ebx], 0
+    
     ; redraw terminal window
+    mov  ecx, [term_active_id]
     call term_redraw
+.done:
     popa
     ret
 
@@ -436,8 +446,15 @@ pm_cmd_savescr:
     jne  .no_pending
     mov  byte [scr_pending], 0
 
-    ; BMP file header (14 bytes) at 0x300000
-    mov  edi, 0x300000
+    ; Allocate BMP processing buffer
+    mov  ecx, 308278
+    mov  edx, scr_proc_tag
+    call kmalloc
+    jc   .mem_fail
+    mov  [scr_buf_ptr], eax
+
+    ; BMP file header (14 bytes)
+    mov  edi, [scr_buf_ptr]
     mov  word  [edi+0],  0x4D42
     mov  dword [edi+2],  308278
     mov  dword [edi+6],  0
@@ -485,13 +502,12 @@ pm_cmd_savescr:
     jl   .pal
     sti
 
-    ; Pixel data: BMP bottom-up = write row 479 first, row 0 last
     mov  ecx, 480
 .row:
     dec  ecx
     mov  eax, 640
     imul eax, ecx
-    mov  esi, 0x1500000   ; read from SCR_CAPTURE (snapshot taken by PrtSc)
+    mov  esi, [scr_capture_ptr]   ; read from dynamic capture buffer
     add  esi, eax
     push ecx
     mov  ecx, 160
@@ -534,7 +550,8 @@ pm_cmd_savescr:
 
     ; write to disk
     mov  esi, scr_name
-    mov  dword [fsd_create_data], 0x300000
+    mov  eax, [scr_buf_ptr]
+    mov  [fsd_create_data], eax
     mov  ecx, 308278
     call fsd_create
     jc   .full
@@ -553,8 +570,35 @@ pm_cmd_savescr:
     mov  bl, 0x0C
     call term_puts
     call term_newline
+    popa
+    ret
+
+.mem_fail:
+    mov  esi, .msg_mem_fail
+    call term_puts
+    call term_newline
+    popa
+    ret
+.msg_mem_fail: db 'Out of memory for screenshot processing!', 0
 
 .done:
+    ; Free both dynamic buffers
+    mov  eax, [scr_capture_ptr]
+    test eax, eax
+    jz   .no_cap_free
+    mov  edx, tag_scr_cap_shell
+    call kfree
+    mov  dword [scr_capture_ptr], 0
+.no_cap_free:
+
+    mov  eax, [scr_buf_ptr]
+    test eax, eax
+    jz   .no_buf_free
+    mov  edx, scr_proc_tag
+    call kfree
+    mov  dword [scr_buf_ptr], 0
+.no_buf_free:
+
     popa
     ret
 
@@ -782,8 +826,13 @@ pm_cmd_cat:
     call fsd_find            ; ESI=name -> CF=0: EAX=entry ptr
     jc   .try_iso
 
-    ; found on data disk - read into cat_buf
-    mov  edi, CAT_BUF_ADDR
+    ; found on data disk - read into dynamic buffer
+    mov  ecx, 32768
+    mov  edx, cat_buf_tag
+    call kmalloc
+    jc   .mem_fail
+    mov  [cat_buf_ptr], eax
+    mov  edi, eax
     call fsd_read_file       ; EAX=entry, EDI=dest -> ECX=bytes
     jmp  .print_buf
 
@@ -792,18 +841,22 @@ pm_cmd_cat:
     cmp  dword [FS_PM_BASE], FS_MAGIC_VAL
     jne  .not_found
 
+    mov  ecx, 32768
+    call kmalloc
+    jc   .mem_fail
+    mov  [cat_buf_ptr], eax
 
     mov  esi, pm_input_buf
     add  esi, 4
     call pm_skip_spaces
     call fs_pm_find          ; ESI=name -> CF=0: EAX=data ptr, ECX=size
-    jc   .not_found
+    jc   .not_found_free
 
     ; copy from ISO into cat_buf (max 32KB)
     push eax
     push ecx
     mov  esi, eax
-    mov  edi, CAT_BUF_ADDR
+    mov  edi, [cat_buf_ptr]
     cmp  ecx, 32768
     jle  .iso_copy_ok
     mov  ecx, 32768
@@ -818,7 +871,7 @@ pm_cmd_cat:
 .print_buf:
     ; ECX = bytes to print
     call term_newline
-    mov  esi, CAT_BUF_ADDR
+    mov  esi, [cat_buf_ptr]
     xor  edx, edx            ; byte index
 .print_loop:
     cmp  edx, ecx
@@ -834,13 +887,32 @@ pm_cmd_cat:
     call term_newline
     jmp  .done
 
+.not_found_free:
+    mov  eax, [cat_buf_ptr]
+    mov  edx, cat_buf_tag
+    call kfree
+    mov  dword [cat_buf_ptr], 0
 .not_found:
     call term_newline
     mov  esi, cat_str_notfound
     call term_puts
     call term_newline
+    jmp  .done
+
+.mem_fail:
+    mov  esi, cat_str_memfail
+    call term_puts
+    call term_newline
+    jmp  .done
 
 .done:
+    mov  eax, [cat_buf_ptr]
+    test eax, eax
+    jz   .no_free
+    mov  edx, cat_buf_tag
+    call kfree
+    mov  dword [cat_buf_ptr], 0
+.no_free:
     popa
     ret
 
@@ -901,7 +973,13 @@ pm_cmd_hexdump:
 
     call fsd_find
     jc   .try_iso_hex
-    mov  edi, CAT_BUF_ADDR
+
+    mov  ecx, 32768
+    mov  edx, cat_buf_tag
+    call kmalloc
+    jc   .mem_fail_hex
+    mov  [cat_buf_ptr], eax
+    mov  edi, eax
     call fsd_read_file       ; ECX = bytes
     jmp  .dump
 
@@ -909,15 +987,20 @@ pm_cmd_hexdump:
     cmp  dword [FS_PM_BASE], FS_MAGIC_VAL
     jne  .hex_notfound
 
+    mov  ecx, 32768
+    call kmalloc
+    jc   .mem_fail_hex
+    mov  [cat_buf_ptr], eax
+
     mov  esi, pm_input_buf
     add  esi, 8
     call pm_skip_spaces
     call fs_pm_find
-    jc   .hex_notfound
+    jc   .hex_notfound_free
     push eax
     push ecx
     mov  esi, eax
-    mov  edi, CAT_BUF_ADDR
+    mov  edi, [cat_buf_ptr]
     cmp  ecx, 32768
     jle  .hex_iso_ok
     mov  ecx, 32768
@@ -959,7 +1042,10 @@ pm_cmd_hexdump:
     add  eax, ebx
     cmp  eax, ecx
     jge  .hex_pad
-    movzx eax, byte [CAT_BUF_ADDR + eax]
+    push esi
+    mov  esi, [cat_buf_ptr]
+    movzx eax, byte [esi + eax]
+    pop  esi
     call hex_print_byte
     jmp  .hex_cont
 .hex_pad:
@@ -983,7 +1069,10 @@ pm_cmd_hexdump:
     add  eax, ebx
     cmp  eax, ecx
     jge  .ascii_pad
-    movzx eax, byte [CAT_BUF_ADDR + eax]
+    push esi
+    mov  esi, [cat_buf_ptr]
+    movzx eax, byte [esi + eax]
+    pop  esi
     cmp  al, 32
     jl   .ascii_dot
     cmp  al, 126
@@ -1011,16 +1100,34 @@ pm_cmd_hexdump:
     jmp  .row
 .dump_done:
     call term_newline
+.dump_exit:
+    mov  eax, [cat_buf_ptr]
+    test eax, eax
+    jz   .no_free_hex
+    mov  edx, cat_buf_tag
+    call kfree
+    mov  dword [cat_buf_ptr], 0
+.no_free_hex:
     popa
     ret
 
+.hex_notfound_free:
+    mov  eax, [cat_buf_ptr]
+    mov  edx, cat_buf_tag
+    call kfree
+    mov  dword [cat_buf_ptr], 0
 .hex_notfound:
     call term_newline
     mov  esi, cat_str_notfound
     call term_puts
     call term_newline
-    popa
-    ret
+    jmp  .dump_exit
+
+.mem_fail_hex:
+    mov  esi, cat_str_memfail
+    call term_puts
+    call term_newline
+    jmp  .dump_exit
 
 ; hex helpers
 hex_print_byte:
@@ -1060,7 +1167,8 @@ hex_row_off:    dd 0
 ; -
 ; CAT_BUF_ADDR lives at 0x180000 (fixed RAM)
 ; This saves 32KB from the kernel binary.
-CAT_BUF_ADDR equ 0x180000
+; cat_buf_ptr replaces fixed CAT_BUF_ADDR equ 0x180000
+cat_buf_ptr:   dd 0
 
 cat_bytes:     dd 0
 
@@ -1077,7 +1185,9 @@ ls_str_b:        db ' B', 0
 cat_str_notfound: db 'File not found', 13, 10, 0
 rm_str_ok:        db 'File deleted.', 13, 10, 0
 rm_str_notfound:  db 'File not found.', 13, 10, 0
-rm_str_nodisk:    db 'No data disk.', 13, 10, 0; -
+rm_str_nodisk:    db 'No data disk.', 13, 10, 0
+cat_str_memfail:  db 'Memory allocation failed!', 0
+; -
 ; pm_cmd_bioscall - demo of the 16-bit to 32-bit bridge
 ; Calls BIOS INT 1Ah (AH=04h) to read RTC date.
 ; -
@@ -1163,6 +1273,17 @@ pm_cmd_browser:
     mov  edx, 400           ; w
     mov  esi, 300           ; h
     call wm_open
+    jc   .full
+    push ecx
+    call wm_draw_all
+    pop  ecx
+    call browser_init
+    jmp  .done
+.full:
+    mov  esi, pm_str_wm_full
+    call term_puts
+    call term_newline
+.done:
     popa
     ret
 
@@ -1295,5 +1416,339 @@ pm_cmd_paint:
 .done:
     popa
     ret
+
+; ===========================================================================
+; pm_cmd_crash - Trigger a Page Fault (0x0E)
+; ===========================================================================
+pm_cmd_crash:
+    pusha
+    mov  esi, .str_crash
+    call term_puts
+    call term_newline
+
+    ; Intentionally trigger a Page Fault (0x0E) 
+    ; by writing to an unmapped address (above 256MB).
+    mov  eax, 0x80000000
+    mov  [eax], eax
+
+    popa
+    ret
+.str_crash: db "Triggering Page Fault for BSOD verification...", 0
+
+scr_proc_tag:       db 'screenshot_proc', 0
+tag_scr_cap_shell:  db 'screenshot_cap', 0
+cat_buf_tag:        db 'shell_cat_buf', 0
+
+; ===========================================================================
+; pm_cmd_vesatest - Switch VESA mode to test arbitrary resolutions
+; ===========================================================================
+pm_cmd_vesatest:
+    pusha
+    mov  esi, pm_input_buf
+    add  esi, 9              ; skip "vesatest "
+    call pm_skip_spaces
+    call pm_parse_uint
+    
+    test eax, eax
+    jnz  .got_mode
+    mov  eax, 0x0103       ; Default to 800x600x8
+.got_mode:
+    mov  cx, ax            ; Save mode without LFB bit in CX
+    mov  bx, ax
+    or   bx, 0x4000        ; Request LFB
+
+    ; Set Mode (AX=4F02h)
+    mov  dword [0x1000 +  0], 0x00004F02    
+    mov  dword [0x1000 +  4], ebx           
+    mov  dword [0x1000 +  8], 0             
+    mov  dword [0x1000 + 12], 0             
+    mov  dword [0x1000 + 16], 0             
+    mov  dword [0x1000 + 20], 0             
+    mov  word  [0x1000 + 24], 0             
+    mov  word  [0x1000 + 26], 0             
+    mov  al, 0x10
+    call pm_bios_call
+
+    ; Re-query mode info to find LFB (AX=4F01h, CX=mode)
+    mov  dword [0x1000 +  0], 0x00004F01    
+    mov  dword [0x1000 +  4], 0             
+    movzx eax, cx
+    mov  dword [0x1000 +  8], eax           
+    mov  dword [0x1000 + 12], 0             
+    mov  dword [0x1000 + 16], 0             
+    mov  dword [0x1000 + 20], 0             
+    mov  word  [0x1000 + 24], 0             
+    mov  word  [0x1000 + 26], 0x0720        
+    mov  al, 0x10
+    call pm_bios_call
+
+    ; Check if LFB is available at offset 0x28 in MIB (0x7200)
+    mov  edi, [0x7228]
+    test edi, edi
+    jz   .hang
+
+    ; Get width, height and BPP to calculate pixel count
+    movzx eax, word [0x7212] ; XRES
+    movzx ebx, word [0x7214] ; YRES
+    movzx edx, byte [0x7219] ; BPP
+    
+    ; Output debug info over serial
+    push esi
+    mov  esi, .str_dbg_res
+    call serial_print
+    call serial_print_hex32
+    mov  esi, .str_dbg_x
+    call serial_print
+    mov  eax, ebx
+    call serial_print_hex32
+    mov  esi, .str_dbg_bpp
+    call serial_print
+    mov  eax, edx
+    call serial_print_hex32
+    mov  esi, .str_dbg_nl
+    call serial_print
+    pop  esi
+
+    movzx eax, word [0x7212] ; XRES
+    movzx ebp, word [0x7210] ; PITCH
+    
+    ; adjust pixel count based on BPP
+    cmp edx, 8
+    je  .bpp8
+    cmp edx, 15
+    je  .bpp16
+    cmp edx, 16
+    je  .bpp16
+    cmp edx, 24
+    je  .bpp24
+    cmp edx, 32
+    je  .bpp32
+    jmp .hang ; Unknown BPP
+    
+.bpp8:
+    mov  ecx, ebx       ; ecx = YRES
+    xor  esi, esi       ; esi = Y
+.draw8_row:
+    push eax            ; save XRES
+    push ecx
+    push edi
+    mov  ecx, eax       ; ecx = XRES
+    xor  edx, edx       ; edx = X
+.draw8_col:
+    mov  eax, edx
+    xor  eax, esi
+    mov  [edi], al
+    inc  edi
+    inc  edx
+    loop .draw8_col
+    pop  edi
+    add  edi, ebp       ; next row
+    pop  ecx
+    pop  eax            ; restore XRES
+    inc  esi            ; Y++
+    loop .draw8_row
+    jmp  .hang
+
+.bpp16:
+    mov  ecx, ebx
+    xor  esi, esi
+.draw16_row:
+    push eax            ; save XRES
+    push ecx
+    push edi
+    mov  ecx, eax       ; ecx = XRES
+    xor  edx, edx       ; edx = X
+.draw16_col:
+    ; R (5 bits) = X[7:3]
+    mov  eax, edx
+    and  eax, 0xF8
+    shl  eax, 8         ; R in [15:11]
+
+    ; G (6 bits) = Y[7:2]
+    mov  ebx, esi
+    and  ebx, 0xFC
+    shl  ebx, 3         ; G in [10:5]
+    or   eax, ebx
+
+    ; B (5 bits) = (X+Y)[7:3]
+    mov  ebx, edx
+    add  ebx, esi
+    and  ebx, 0xF8
+    shr  ebx, 3         ; B in [4:0]
+    or   eax, ebx
+
+    mov  [edi], ax
+    add  edi, 2
+    inc  edx
+    loop .draw16_col
+    pop  edi
+    add  edi, ebp
+    pop  ecx
+    pop  eax            ; restore XRES
+    inc  esi            ; Y++
+    loop .draw16_row
+    jmp  .hang
+    
+.bpp24:
+    mov  ecx, ebx
+    xor  esi, esi
+.draw24_row:
+    push eax            ; save XRES
+    push ecx
+    push edi
+    mov  ecx, eax       ; ecx = XRES
+    xor  edx, edx       ; edx = X
+.draw24_col:
+    ; B = (X+Y)
+    mov  ebx, edx
+    add  ebx, esi
+    mov  [edi], bl
+    
+    ; G = Y
+    mov  eax, esi
+    mov  [edi+1], al
+    
+    ; R = X
+    mov  eax, edx
+    mov  [edi+2], al
+
+    add  edi, 3
+    inc  edx
+    loop .draw24_col
+    pop  edi
+    add  edi, ebp
+    pop  ecx
+    pop  eax            ; restore XRES
+    inc  esi            ; Y++
+    loop .draw24_row
+    jmp  .hang
+
+.bpp32:
+    mov  ecx, ebx
+    xor  esi, esi
+.draw32_row:
+    push eax            ; save XRES
+    push ecx
+    push edi
+    mov  ecx, eax       ; ecx = XRES
+    xor  edx, edx       ; edx = X
+.draw32_col:
+    ; R = X
+    mov  eax, edx
+    and  eax, 0xFF
+    shl  eax, 16        ; EAX = [00 | R | 00 | 00]
+    
+    ; G = Y
+    mov  ebx, esi
+    and  ebx, 0xFF
+    shl  ebx, 8         ; EBX = [00 | 00 | G | 00]
+    or   eax, ebx
+    
+    ; B = X + Y
+    mov  ebx, edx
+    add  ebx, esi
+    and  ebx, 0xFF
+    or   eax, ebx       ; EAX = [00 | R | G | B]
+    
+    mov  [edi], eax
+    add  edi, 4
+    inc  edx
+    loop .draw32_col
+    pop  edi
+    add  edi, ebp
+    pop  ecx
+    pop  eax            ; restore XRES
+    inc  esi            ; Y++
+    loop .draw32_row
+    jmp  .hang
+
+.hang:
+    cli
+    hlt
+    jmp  .hang
+
+.str_dbg_res: db '[VESATest] Set Resolution: ', 0
+.str_dbg_x:   db ' x ', 0
+.str_dbg_bpp: db ' BPP: ', 0
+.str_dbg_nl:  db 13, 10, 0
+
+; ===========================================================================
+; pm_cmd_vesamodes - List all VESA modes supported by the BIOS
+; ===========================================================================
+pm_cmd_vesamodes:
+    pusha
+    
+    ; The VbeInfoBlock was saved at 0x7000 during boot.
+    ; Offset 0x0E contains a far pointer to the mode list (offset, segment).
+    movzx eax, word [0x7010] ; segment
+    shl   eax, 4
+    movzx ebx, word [0x700E] ; offset
+    add   eax, ebx           ; EAX = physical address of mode list array
+    mov   ebp, eax           ; use EBP as mode pointer
+
+.loop:
+    movzx ecx, word [ebp]    ; read mode number
+    cmp   cx, 0xFFFF         ; end of list?
+    je    .done
+    
+    add   ebp, 2             ; advance pointer
+    
+    ; Query this mode via 4F01h
+    mov  dword [0x1000 +  0], 0x00004F01    
+    mov  dword [0x1000 +  4], 0             
+    mov  dword [0x1000 +  8], ecx           
+    mov  dword [0x1000 + 12], 0             
+    mov  dword [0x1000 + 16], 0             
+    mov  dword [0x1000 + 20], 0             
+    mov  word  [0x1000 + 24], 0             
+    mov  word  [0x1000 + 26], 0x0720        
+    mov  al, 0x10
+    call pm_bios_call
+    
+    mov  eax, [0x1000 + 0]
+    and  eax, 0xFFFF
+    cmp  eax, 0x004F
+    jne  .loop
+    
+    ; Read MIB at 0x7200
+    mov  ax, [0x7200]       ; attributes
+    test ax, 0x0080         ; LFB available?
+    jz   .loop
+    test ax, 0x0010         ; Graphics mode?
+    jz   .loop
+    
+    ; Print "Mode: 0xXXXX = 1280x720x32"
+    mov  esi, .str_mode
+    call term_puts
+    
+    mov  eax, ecx
+    call pm_print_hex16
+    
+    mov  esi, .str_eq
+    call term_puts
+    
+    movzx eax, word [0x7212] ; width
+    call pm_print_uint
+    mov  esi, .str_x
+    call term_puts
+    
+    movzx eax, word [0x7214] ; height
+    call pm_print_uint
+    mov  esi, .str_x
+    call term_puts
+    
+    movzx eax, byte [0x7219] ; bpp
+    call pm_print_uint
+    call term_newline
+
+    jmp   .loop
+
+.done:
+    popa
+    ret
+
+.str_mode: db 'Mode: 0x', 0
+.str_eq:   db ' = ', 0
+.str_x:    db 'x', 0
 
 

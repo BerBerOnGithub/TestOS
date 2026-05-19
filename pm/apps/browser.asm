@@ -9,13 +9,27 @@ DNS_SRC_PORT    equ 4096    ; same ephemeral port as UDP_SRC_PORT in udp.asm
 
 browser_init:
     pusha
-    ; clear buffers
+    ; clear URL buffer
     mov  edi, browser_url
     xor  eax, eax
     mov  ecx, 64
     rep  stosd
-    mov  edi, browser_content
-    mov  ecx, 4096
+
+    ; Allocate content buffer if not present
+    mov  eax, [browser_content_ptr]
+    test eax, eax
+    jnz  .already_allocated
+    
+    mov  ecx, 65536             ; 64KB
+    mov  edx, br_buf_tag
+    call kmalloc
+    jc   .fail_alloc            ; if malloc fails, we can't do much
+    mov  [browser_content_ptr], eax
+
+.already_allocated:
+    mov  edi, [browser_content_ptr]
+    xor  eax, eax
+    mov  ecx, 16384             ; Clear 64KB (16384 dwords)
     rep  stosd
     
     ; initial URL
@@ -28,13 +42,34 @@ browser_init:
     jnz  .copy_url
     
     mov  esi, browser_s_welcome
-    mov  edi, browser_content
+    mov  edi, [browser_content_ptr]
 .copy_welcome:
     lodsb
     stosb
     test al, al
     jnz  .copy_welcome
     
+    popa
+    ret
+
+.fail_alloc:
+    ; serious error, but just return for now
+    popa
+    ret
+
+; - browser_exit -
+browser_exit:
+    pusha
+    ; Stop any active fetch
+    mov  byte [br_fetch_state], BR_ST_IDLE
+    
+    mov  eax, [browser_content_ptr]
+    test eax, eax
+    jz   .done
+    mov  edx, br_buf_tag
+    call kfree
+    mov  dword [browser_content_ptr], 0
+.done:
     popa
     ret
 
@@ -121,7 +156,7 @@ browser_draw:
     mov  edx, [edi+12]
     sub  edx, WM_TITLE_H + 35 ; content h
     
-    mov  esi, browser_content
+    mov  esi, [browser_content_ptr]
     call browser_draw_content
     
     ; Draw scrollbar
@@ -1061,7 +1096,7 @@ browser_strip_headers:
 
 .not_found:
     ; No headers found, copy everything
-    mov  esi, browser_content
+    mov  esi, [browser_content_ptr]
     jmp  .copy_loop
 .found:
     ; Copy body to destination
@@ -1385,19 +1420,21 @@ browser_fetch_start:
     ; reset scroll, content
     mov  dword [browser_scroll_y], 0
     mov  dword [browser_total_h], 0
-    mov  dword [br_recv_ptr], browser_content
+    mov  dword [br_recv_ptr], eax
+    mov  eax, [browser_content_ptr]
+    mov  [br_recv_ptr], eax
     mov  dword [br_dns_ctr], 2000000
     mov  dword [br_conn_ctr], TCP_POLL_LIMIT
     mov  dword [br_close_ctr], TCP_POLL_LIMIT
 
-    ; clear content buffer (500KB)
-    mov  edi, browser_content
+    ; clear content buffer (64KB)
+    mov  edi, [browser_content_ptr]
     xor  eax, eax
-    mov  ecx, 125000
+    mov  ecx, 16384
     rep  stosd
 
     ; show "Fetching..." while async work runs
-    mov  edi, browser_content
+    mov  edi, [browser_content_ptr]
     mov  esi, browser_s_fetching
 .copy_f:
     lodsb
@@ -1442,7 +1479,7 @@ browser_fetch_start:
 
 .err_url:
     mov  esi, browser_s_err_url
-    mov  edi, browser_content
+    mov  edi, [browser_content_ptr]
 .copy_err:
     lodsb
     stosb
@@ -1627,7 +1664,8 @@ browser_fetch_tick:
     jc   .send_fail
 
     ; reset receive pointer to start of content buffer
-    mov  dword [br_recv_ptr], browser_content
+    mov  eax, [browser_content_ptr]
+    mov  [br_recv_ptr], eax
     mov  dword [tcpg_total], 0
     mov  byte [br_fetch_state], BR_ST_RECV
     jmp  .done
@@ -1646,11 +1684,11 @@ browser_fetch_tick:
     jle  .recv_no_data
 
     mov  ecx, [tcp_rx_pending]
-    ; safety: don't overflow 500KB
+    ; safety: don't overflow 64KB
     mov  eax, [br_recv_ptr]
-    sub  eax, browser_content
+    sub  eax, [browser_content_ptr]
     add  eax, ecx
-    cmp  eax, 500000
+    cmp  eax, 65536
     jae  .recv_finish
 
     mov  esi, TCP_RX_BUF
@@ -1712,12 +1750,12 @@ browser_fetch_tick:
 
 ; ---- Strip headers + measure in one tick, then go idle ----
 .tick_strip:
-    mov  esi, browser_content
-    mov  edi, browser_content
+    mov  esi, [browser_content_ptr]
+    mov  edi, [browser_content_ptr]
     call browser_strip_headers
 
     mov  byte [browser_measuring], 1
-    mov  esi, browser_content
+    mov  esi, [browser_content_ptr]
     mov  eax, [br_x0]
     mov  ebx, [br_y0]
     mov  ecx, [br_w]
@@ -1730,7 +1768,7 @@ browser_fetch_tick:
     jmp  .done
 
 .set_err:
-    mov  edi, browser_content
+    mov  edi, [browser_content_ptr]
 .copy_err2:
     lodsb
     stosb
@@ -1800,7 +1838,7 @@ browser_fetch:
 
 ; - Data -
 browser_url:     times 256 db 0
-browser_content  equ 0x24C000
+browser_content_ptr: dd 0
 browser_s_go:    db 'Go', 0
 browser_s_default_url: db '142.250.180.142 80 /', 0
 browser_s_hdr_host:    db 'Host: google.com', 13, 10, 0
@@ -1827,3 +1865,4 @@ br_win_idx:         dd 0               ; saved window index during key handling
 br_tmp_wx:          dd 0               ; temp window x for urlbar redraw
 br_tmp_wy:          dd 0               ; temp window y for urlbar redraw
 br_tmp_ww:          dd 0               ; temp window w for urlbar redraw
+br_buf_tag:      db 'browser_content', 0

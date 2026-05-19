@@ -74,25 +74,6 @@ putc_color:
     push cx
     push dx
 
-    ; --- serial output (non-blocking) ---
-    push dx
-    push ax
-    mov  al, [mt_active]
-    test al, al
-    jnz  .no_serial
-    mov  dx, 0x3FD
-    in   al, dx
-    test al, 0x20
-    jz   .no_serial
-    mov  dx, 0x3F8
-    pop  ax
-    push ax
-    out  dx, al
-.no_serial:
-    pop  ax
-    pop  dx
-    ; ---------------------
-
     cmp  al, 13
     je   .do_cr
     cmp  al, 10

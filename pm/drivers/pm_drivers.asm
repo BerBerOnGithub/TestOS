@@ -26,8 +26,9 @@ pm_drv_status:
     db 0    ; 4 PCI bus
     db 0    ; 5 e1000 NIC
     db 0    ; 6 ACPI
+    db 0    ; 7 USB (UHCI)
 
-PM_DRV_COUNT equ 7
+PM_DRV_COUNT equ 8
 
 ; -
 ; pm_drv_init - initialise all PM drivers on entry to protected mode
@@ -108,6 +109,10 @@ pm_drv_init:
 
     ; pre-seed ARP cache (QEMU SLIRP gateway doesn't respond to ARP)
     call arp_init
+
+    ; - Driver 7: USB (UHCI) -
+    call usb_pci_find
+    mov  [pm_drv_status + 7], al
 
     pop  edi
     pop  edx
@@ -253,6 +258,14 @@ pm_cmd_drivers:
     mov  al, [pm_drv_status + 6]
     call .status
 
+    mov  esi, pm_str_drv_usb
+    mov  bl, 0x0E
+    call pm_puts
+    mov  al, [pm_drv_status + 7]
+    call .status
+
+    call vesa_print_info
+
     mov  esi, pm_str_drv_footer
     mov  bl, 0x0B
     call pm_puts
@@ -276,30 +289,21 @@ pm_cmd_drivers:
     ret
 
 ; -
-; pm_delay_ms - busy-wait approximately EAX milliseconds using PIT channel 0
-; Reads port 0x40 latch; each tick at 100 Hz = 10ms.
-; For simplicity: spins reading PIT status, counts ticks.
+; pm_delay_ms - busy-wait approximately EAX milliseconds
+; Uses port 0xED for QEMU exits (roughly 1us each exit)
 ; -
 pm_delay_ms:
     push eax
     push ecx
     push edx
-    ; convert ms to ticks at 100Hz (divide by 10)
-    mov  ecx, eax
-    xor  edx, edx
-    mov  eax, ecx
-    mov  ecx, 10
-    div  ecx             ; EAX = ticks needed
-    mov  ecx, eax
+    ; ECX = MS * 1000 (roughly)
+    imul ecx, eax, 1000
     test ecx, ecx
     jz   .done
-.tick:
-    ; latch channel 0 count
-    mov  al, 0x00
-    out  0x43, al
-    in   al, 0x40        ; low byte
-    in   al, 0x40        ; high byte (discard " just burning a tick)
-    loop .tick
+    mov  dx, 0xED
+.wait:
+    in   al, dx
+    loop .wait
 .done:
     pop  edx
     pop  ecx
@@ -323,6 +327,7 @@ pm_str_drv_spk:     db ' | Speaker (PIT ch.2)   | ', 0
 pm_str_drv_pci:     db ' | PCI Bus  (0xCF8)     | ', 0
 pm_str_drv_e1000:   db ' | e1000 NIC (MMIO)     | ', 0
 pm_str_drv_acpi:    db ' | ACPI Power Mgmt      | ', 0
+pm_str_drv_usb:     db ' | USB Ctrl (UHCI)      | ', 0
 pm_str_drv_loaded:   db 'LOADED   |', 13, 10, 0
 pm_str_drv_unloaded: db 'UNLOADED |', 13, 10, 0
 
@@ -335,3 +340,5 @@ pm_str_drv_unloaded: db 'UNLOADED |', 13, 10, 0
 %include "pm/net/icmp.asm"
 %include "pm/net/udp.asm"
 %include "pm/net/tcp.asm"
+%include "pm/drivers/usb.asm"
+%include "pm/drivers/vesa.asm"

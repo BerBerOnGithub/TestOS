@@ -106,14 +106,18 @@ pm_bios_call:
     mov  ecx, [si + 8]
     mov  edx, [si + 12]
     mov  edi, [si + 20]
+
+    ; Load segments BEFORE overwriting SI
+    push word [si + 26]
+    push word [si + 24]
+    
+    ; Now load ESI
     push dword [si + 16]
     pop  esi
-
-    ; Load segments (ES first so SI still points at structure)
-    mov  ax, [si + 26]
-    mov  es, ax
-    mov  ax, [si + 24]
-    mov  ds, ax
+    
+    ; Pop segments into DS and ES (in reverse order of pushes)
+    pop  ds
+    pop  es
 
     ; 5. Self-modifying INT instruction - patch vector byte via CS:
     push eax
@@ -127,7 +131,7 @@ pm_bios_call:
 
     ; FINAL LOAD: reload all registers from the structure
     ; (DS and ES are already set, SI/DI/BP might be needed by BIOS)
-    mov  bp, si             ; BP points to RM_REGS_ADDR
+    mov  bp, RM_REGS_ADDR   ; BP points to RM_REGS_ADDR
     mov  eax, [bp + 0]
     mov  ebx, [bp + 4]
     mov  ecx, [bp + 8]
@@ -199,7 +203,7 @@ pm_bios_call:
     mov  esp, [pm_sp_save]
 
     ; 8. Re-enable Paging now that we are safely back in 32-bit segments
-    mov  eax, 0x120000      ; PAGE_DIR moved to 0x120000 to avoid FS overlap
+    mov  eax, 0x1000000      ; PAGE_DIR is at 16MB (0x1000000)
     mov  cr3, eax           ; reload page directory
     mov  eax, cr0
     or   eax, 0x80000000   ; Set PG ONLY

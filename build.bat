@@ -68,7 +68,7 @@ REM Layout aligned to 2048-byte CD sectors (4 x 512-byte sectors):
 REM   512-sector 0:   boot.bin
 REM   512-sector 1:   stage2.bin   (max 3 sectors = 1536 bytes)
 REM   512-sector 4:   kernel.bin   (2048-LBA 1)
-REM   512-sector 204: fs.bin       (2048-LBA 51)
+REM   512-sector 804: fs.bin       (2048-LBA 201)
 set KERNEL_SECTOR=4
 set FS_SECTOR=804
 set FS_SECTORS=660
@@ -131,6 +131,7 @@ exit /b 0
   -display sdl,window-close=on ^
   -name "NatureOS" ^
   -serial stdio ^
+  -usb ^
   -no-reboot
 
 exit /b 0

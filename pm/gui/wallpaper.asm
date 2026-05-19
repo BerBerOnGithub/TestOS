@@ -26,8 +26,8 @@
 
 [BITS 32]
 
-WP_BUF   equ 0x200000      ; 640x480 = 300KB pixel buffer (moved above e1000 buffers which end at 0x11A000)
-WP_REMAP equ 0x24B000      ; 256-byte remap table (immediately after WP_BUF)
+wp_buf_ptr: dd 0
+wp_remap:   times 256 db 0
 
 ; -
 wallpaper_load:
@@ -35,7 +35,7 @@ wallpaper_load:
 
     ; always build remap table first " icons/cursor depend on it
     ; even if wallpaper load fails, remap must be valid
-    mov  edi, WP_REMAP
+    mov  edi, wp_remap
     xor  ecx, ecx
 .remap_build:
     mov  eax, ecx
@@ -54,7 +54,20 @@ wallpaper_load:
     jc   .fail
 
     mov  [wp_file], eax
-    mov  edi, eax
+    
+    ; - Allocate wallpaper buffer if not already present -
+    mov  eax, [wp_buf_ptr]
+    test eax, eax
+    jnz  .already_allocated
+    
+    mov  ecx, 307200            ; 640x480
+    mov  edx, wp_tag
+    call kmalloc
+    jc   .fail
+    mov  [wp_buf_ptr], eax
+
+.already_allocated:
+    mov  edi, [wp_file]
 
     ; validate BMP
     cmp  word [edi], 0x4D42     ; 'BM'
@@ -111,8 +124,8 @@ wallpaper_load:
     dec  ecx
     jnz  .pal_loop
 
-    ; - decode BMP (bottom-up) into WP_BUF (top-down), remapping pixels -
-    mov  edi, WP_BUF
+    ; - decode BMP (bottom-up) into buffer (top-down), remapping pixels -
+    mov  edi, [wp_buf_ptr]
     mov  edx, [wp_h]
     dec  edx                    ; start at last BMP row (= top of screen)
 
@@ -126,7 +139,7 @@ wallpaper_load:
     mov  ecx, [wp_w]
 .px_loop:
     movzx eax, byte [esi]       ; read original BMP pixel index
-    movzx eax, byte [WP_REMAP + eax]  ; remap to DAC slot 16+
+    movzx eax, byte [wp_remap + eax]  ; remap to DAC slot 16+
     mov  [edi], al
     inc  esi
     inc  edi
@@ -198,8 +211,8 @@ wallpaper_draw:
     add  edi, eax
     add  edi, [wp_pad_left]     ; offset to centred column start
 
-    ; source pointer: WP_BUF + row * 640
-    mov  esi, WP_BUF
+    ; source pointer: [wp_buf_ptr] + row * 640
+    mov  esi, [wp_buf_ptr]
     mov  eax, ebx
     imul eax, 640
     add  esi, eax
@@ -247,3 +260,4 @@ wp_pad_top:  dd 0
 wp_pad_left: dd 0
 wp_filename: db 'wallpaper', 0
              times 22 db 0
+wp_tag:      db 'wallpaper', 0

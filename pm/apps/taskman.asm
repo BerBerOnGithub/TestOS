@@ -146,8 +146,17 @@ tm_count_instances:
 
 ; -
 tm_draw_dec:
-    ; EBX is preserved? No, it should be updated by our count
-    mov  edi, tm_numbuf
+    ; Allocate 8 bytes for a temp buffer
+    pusha
+    mov  ecx, 8
+    mov  edx, tm_dec_tag
+    call kmalloc
+    jc   .fail
+    mov  edi, eax
+    
+    mov  eax, [esp + 28]     ; get original EAX from pushad (wait, pusha is 32 bytes)
+    ; Actually, EAX is passed in. EAX = count.
+    
     cmp  eax, 9
     jbe  .single
     mov  byte [edi], '+'
@@ -157,11 +166,19 @@ tm_draw_dec:
     mov  [edi], al
 .stored:
     mov  byte [edi+1], 0
-    mov  esi, tm_numbuf
+    
+    mov  esi, edi
     mov  ecx, [tm_curr_y]
     mov  dl,  0x00
     mov  dh,  0xFF
     call fb_draw_string
+    
+    ; Free the buffer
+    mov  eax, edi
+    mov  edx, tm_dec_tag
+    call kfree
+.fail:
+    popa
     ret
 
 ; --- Data ---
@@ -176,13 +193,13 @@ tm_curr_title: dd 0
 tm_next_item: dd 0
 tm_cnt_total: dd 0
 tm_any_active: db 0
-tm_numbuf:    db 0, 0
 
 tm_str_header_name:   db 'Application Name (Instances)', 0
 tm_str_header_status: db 'Status', 0
 tm_str_active:        db '[Active]', 0
 tm_str_sfx_open:      db '(', 0
 tm_str_sfx_close:     db ')', 0
+tm_dec_tag:           db 'taskman_dec', 0
 
 tm_type_list:
     db 0, 'Terminal', 0

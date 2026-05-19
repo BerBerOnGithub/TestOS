@@ -162,6 +162,12 @@ str_hex:       db "0123456789ABCDEF"
 
 ; EAX = vector, EBX = error code (if any)
 irq_fatal_dump:
+    ; Save vector and error code immediately before anything clobbers them
+    mov  [irq_saved_vec], eax
+    mov  [irq_saved_err], ebx
+    mov  eax, cr2
+    mov  [irq_saved_cr2], eax
+
     push eax
     push ebx
     mov  esi, str_fatal_exc
@@ -185,20 +191,24 @@ irq_fatal_dump:
     ; Print CR2 (Faulting Address) - critical for 0E
     mov  esi, str_cr2
     call irq_serial_puts
-    mov  eax, cr2
+    mov  eax, [irq_saved_cr2]
     call irq_serial_print_hex32_local
 
     ; Print Error Code
     mov  esi, str_err_code
     call irq_serial_puts
-    mov  eax, ebx
+    mov  eax, [irq_saved_err]
     call irq_serial_print_hex32_local
 
-    mov  al, 13
-    call irq_serial_putc
     mov  al, 10
     call irq_serial_putc
-    
+
+    ; --- Graphical Panic Screen ---
+    mov  eax, [irq_saved_vec]
+    mov  ebx, [irq_saved_err]
+    mov  esi, [irq_saved_cr2]
+    call panic_screen   ; this never returns
+
     cli
     hlt
 
@@ -272,6 +282,10 @@ make_stub_exc 0x00
 make_stub_exc 0x06
 
 ; - data -
+panic_saved_note: db 0   ; unused, reserved
+irq_saved_vec: dd 0
+irq_saved_err: dd 0
+irq_saved_cr2: dd 0
 pit_ticks:   dd 0
 
 idt_desc:

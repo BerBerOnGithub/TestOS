@@ -2,15 +2,20 @@
 
 
 
-Apps:
+System:
 
-* Added Paint
+* Actual memory allocation
+* Crash handler
+* Added debug stub for USB
+* Added stub for VESA
+
+
 
 
 
 ## Planning to implement
 
-* Actual audio
+* Support for audio
 * An actual browser
 * VBE -> VESA
 * Support for FAT12

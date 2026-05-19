@@ -818,6 +818,27 @@ wm_close:
     pusha
     imul edi, ecx, WM_STRIDE
     add  edi, wm_table
+
+    cmp  byte [edi+16], WM_NOTEPAD
+    jne  .no_notepad_close
+    call notepad_exit
+.no_notepad_close:
+
+    cmp  byte [edi+16], WM_BROWSER
+    jne  .no_browser_close
+    call browser_exit
+.no_browser_close:
+
+    cmp  byte [edi+16], WM_PAINT
+    jne  .no_paint_close
+    call paint_exit
+.no_paint_close:
+
+    cmp  byte [edi+16], WM_TERM
+    jne  .no_term_close
+    call term_exit
+.no_term_close:
+
     movzx eax, byte [edi+24]    ; save closed window z_order
     mov  [wm_tmp_zclosed], eax
     mov  byte [edi+17], 0
@@ -2234,14 +2255,6 @@ wm_update_contents:
     
     push eax
     push ebx
-    mov eax, 0
-    mov ebx, 100
-    call gfx_mark_dirty
-    pop ebx
-    pop eax
-    
-    push eax
-    push ebx
     push ecx
     push edi
     xor ecx, ecx
@@ -2253,14 +2266,16 @@ wm_update_contents:
     cmp byte [edi+17], 1
     jne .ov_next
     
-    ; check SysInfo overlap (top-right)
+    ; check SysInfo overlap (top-right: 470..640, 0..110)
     mov ebx, [edi+4]
-    cmp ebx, 100
+    cmp ebx, 110
     jge .ov_tb
     mov eax, [edi+0]
     add eax, [edi+8]
     cmp eax, 470
-    jg .ov_hit
+    jle .ov_tb
+    ; overlap hit!
+    mov byte [edi+19], 1   ; dirty
 
 .ov_tb:
     ; check Taskbar Clock overlap (bottom-right: [552..640, 462..480])
@@ -2272,9 +2287,9 @@ wm_update_contents:
     add eax, [edi+8]
     cmp eax, 552
     jle .ov_next
-
-.ov_hit:
+    ; overlap hit!
     mov byte [edi+19], 1   ; dirty
+
 .ov_next:
     inc ecx
     jmp .ov_loop
@@ -2344,7 +2359,6 @@ wm_update_contents:
     jmp  .sw_loop
 
 .done:
-    call gfx_flush
     pop  edi
     pop  ecx
     pop  eax
@@ -2367,7 +2381,7 @@ wm_restore_sysinfo_bg:
     mov ebx, 0
     mov ecx, 170
     mov edx, 110
-    mov esi, 0x0A      ; Green Fallback
+    mov esi, 0x01      ; Desktop Blue Fallback
     call fb_fill_rect
     jmp .done
 
@@ -2385,17 +2399,17 @@ wm_restore_sysinfo_bg:
     add  edi, 470
 
     ; src: WP_BUF pixel at this screen row and x=470
-    ; screen row -> WP_BUF row = screen_y - pad_top (if in range, else use desktop bg)
+    ; cursor row -> WP_BUF row = screen_y - pad_top (if in range, else use desktop bg)
     mov  eax, ebx
     sub  eax, [wp_pad_top]
     js   .fill_bg           ; above wallpaper: fill with desktop colour
     cmp  eax, [wp_h]
     jge  .fill_bg           ; below wallpaper: fill with desktop colour
 
-    ; WP_BUF row is valid: src = WP_BUF + row * 640 + pad_left
-    ; but sysinfo x=470, so we want: WP_BUF + row*640 + max(470 - pad_left, 0)
+    ; WP_BUF row is valid: src = [wp_buf_ptr] + row * 640 + pad_left
+    ; but sysinfo x=470, so we want: [wp_buf_ptr] + row*640 + max(470 - pad_left, 0)
     imul eax, 640
-    add  eax, WP_BUF
+    add  eax, [wp_buf_ptr]
     ; x in wallpaper = screen_x - pad_left; for x=470:
     mov  ecx, 470
     sub  ecx, [wp_pad_left]
@@ -2423,7 +2437,7 @@ wm_restore_sysinfo_bg:
     mov  ebx, 0
     mov  ecx, 170
     mov  edx, 110
-    mov  esi, 0x0A      ; Green
+    mov  esi, 0x01      ; Desktop Blue
     call fb_fill_rect
 
 .done:

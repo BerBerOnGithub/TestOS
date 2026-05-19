@@ -24,6 +24,8 @@ pm_entry:
     call dbg_serial_puts
     call pci_init           ; Call BEFORE paging so we can map e1000 BAR0
     call paging_init        ; immediately enable virtual memory
+    call pmm_init           ; initialize physical page allocator bitmap
+    call heap_init          ; initialize block allocator structures
 
     mov  esi, dbg_msg_3
     call dbg_serial_puts
@@ -50,13 +52,12 @@ pm_entry:
     call dbg_serial_puts
 
 
-    ; If VBE failed, skip the graphical WM entirely and use text-mode shell
-    cmp  byte [vbe_ok], 1
+    ; If VESA/VBE failed, skip the graphical WM entirely and use text-mode shell
+    cmp  byte [vesa_ok], 1
     jne  .text_shell
 
     ; initialise window manager (draws desktop + taskbar)
     call wm_init
-    call browser_init
 
     ; load wallpaper first ,! populates WP_REMAP used by icons + cursor
     call wallpaper_load
@@ -392,6 +393,32 @@ pm_exec:
     call pm_strcmp
     je   .paint
 
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_cmd_usbinfo
+    call pm_strcmp
+    je   .usbinfo
+
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_cmd_vesatest
+    call pm_cmdmatch
+    je   .vesatest
+
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_cmd_vesalist
+    call pm_cmdmatch
+    je   .vesalist
+
+    mov  esi, pm_input_buf
+
+    mov  edi, pm_str_cmd_crash
+    call pm_strcmp
+    je   .crash
+
+    mov  esi, pm_input_buf
+    mov  edi, pm_str_cmd_heaptest
+    call pm_strcmp
+    je   .heaptest
+
     ; unknown
     mov  esi, pm_str_unknown
     mov  bl, 0x0C
@@ -461,6 +488,16 @@ pm_exec:
 .shutdown:  call pm_cmd_shutdown
     jmp  .done
 .paint:     call pm_cmd_paint
+    jmp  .done
+.usbinfo:   call cmd_usbinfo
+    jmp  .done
+.vesatest:  call pm_cmd_vesatest
+    jmp  .done
+.vesalist:  call pm_cmd_vesamodes
+    jmp  .done
+.heaptest:  call cmd_heaptest
+    jmp  .done
+.crash:     call pm_cmd_crash
     jmp  .done
 .exit:  call pm_cmd_exit       ; does not return to here
 
@@ -661,6 +698,10 @@ pm_cmd_timer:
     pop  ecx
     call wm_draw_clock
     jmp  .timer_done
+
+.timer_done:
+    popa
+    ret
 .timer_full:
     mov  esi, pm_str_wm_full
     call term_puts
@@ -670,9 +711,7 @@ pm_cmd_timer:
     mov  esi, pm_str_timer_usage
     call term_puts
     call term_newline
-.timer_done:
-    popa
-    ret
+    jmp  .timer_done
 
 ; -
 ; pm_cmd_files  ,! open a Files window
@@ -702,14 +741,14 @@ pm_cmd_files:
 ; ------------------------------------
 ; DEBUG TRACE STRINGS AND UART HOOK
 ; ------------------------------------
-dbg_msg_1: db '[P1]irq', 13, 10, 0
-dbg_msg_2: db '[P2]paging', 13, 10, 0
-dbg_msg_3: db '[P3]disk', 13, 10, 0
-dbg_msg_4: db '[P4]fsd', 13, 10, 0
-dbg_msg_5: db '[P5]drv', 13, 10, 0
-dbg_msg_6: db '[P6]scr', 13, 10, 0
-dbg_msg_7: db '[P7]gfx', 13, 10, 0
-dbg_msg_8: db '[P8]done', 13, 10, 0
+dbg_msg_1: db '[  0.000000] Initializing Interrupts...', 13, 10, 0
+dbg_msg_2: db '[  0.000001] Enabling Paging & Memory Management...', 13, 10, 0
+dbg_msg_3: db '[  0.000002] Detecting Disk Drives...', 13, 10, 0
+dbg_msg_4: db '[  0.000003] Loading Filesystem...', 13, 10, 0
+dbg_msg_5: db '[  0.000004] Initializing Kernel Drivers...', 13, 10, 0
+dbg_msg_6: db '[  0.000005] Preparing GUI Environment...', 13, 10, 0
+dbg_msg_7: db '[  0.000006] Starting Window Manager...', 13, 10, 0
+dbg_msg_8: db '[  0.000007] Boot Sequence Complete.', 13, 10, 0
 
 dbg_serial_puts:
     pusha
@@ -795,6 +834,7 @@ dbg_serial_print_hex32:
 ; -
 ; Sub-modules
 ; -
+%include "pm/core/pm_data.asm"
 %include "pm/core/pm_screen.asm"
 %include "pm/drivers/pm_keyboard.asm"
 %include "pm/core/pm_string.asm"
@@ -805,7 +845,6 @@ dbg_serial_print_hex32:
 %include "pm/apps/notepad.asm"
 %include "pm/apps/paint.asm"
 %include "pm/drivers/pm_drivers.asm"
-%include "pm/core/pm_data.asm"
 %include "pm/drivers/mouse.asm"
 %include "pm/apps/terminal.asm"
 %include "pm/core/fs_pm.asm"
@@ -815,3 +854,5 @@ dbg_serial_print_hex32:
 %include "pm/gui/wallpaper.asm"
 %include "pm/gui/ctx_menu.asm"
 %include "pm/core/paging.asm"
+%include "pm/core/pmm.asm"
+%include "pm/core/heap.asm"

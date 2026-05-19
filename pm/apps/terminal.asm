@@ -3,13 +3,6 @@
 ; ===========================================================================
 [BITS 32]
 
-%define TERM_BUF_COLS  64
-%define TERM_BUF_ROWS  48
-%define TERM_FG        0x0A
-%define TERM_BG        0x00
-%define TERM_PROMPT_C  0x0B
-%define TERM_MAX_WINS  8
-
 ; -
 ; term_init
 ; -
@@ -17,10 +10,24 @@ term_init:
     ; ECX = window id
     pusha
     mov  [term_active_id], ecx
-    mov  eax, TERM_BUF_COLS * TERM_BUF_ROWS * 2
-    imul eax, ecx
-    mov  edi, term_buf
-    add  edi, eax
+
+    ; Phase 2: Dynamic Allocation
+    mov  ebx, ecx
+    shl  ebx, 2
+    mov  eax, [term_buf_ptrs + ebx]
+    test eax, eax
+    jnz  .init_buf           ; already have a buffer (reusing or re-init)
+    
+    mov  ecx, (TERM_BUF_COLS * TERM_BUF_ROWS * 2)
+    mov  edx, term_buf_tag
+    call kmalloc
+    jc   .fail_alloc         ; should handle better, but for now just fail re-init
+    mov  [term_buf_ptrs + ebx], eax
+
+.init_buf:
+    mov  edi, eax
+    test edi, edi
+    jz   .fail_alloc
     mov  ecx, (TERM_BUF_COLS * TERM_BUF_ROWS * 2 + 3) / 4
     xor  eax, eax
     rep  stosd
@@ -61,6 +68,26 @@ term_init:
 .disk_done:
 
     call term_draw_prompt
+    popa
+    ret
+
+.fail_alloc:
+    popa
+    ret
+
+; - term_exit
+term_exit:
+    ; ECX = window_id
+    pusha
+    mov  ebx, ecx
+    shl  ebx, 2
+    mov  eax, [term_buf_ptrs + ebx]
+    test eax, eax
+    jz   .done
+    mov  edx, term_buf_tag
+    call kfree
+    mov  dword [term_buf_ptrs + ebx], 0
+.done:
     popa
     ret
 
@@ -119,11 +146,9 @@ term_buf_write:
     imul edi, 2
     add  ecx, edi
     
-    mov  edi, TERM_BUF_COLS * TERM_BUF_ROWS * 2
-    imul edi, ebx
-    add  ecx, edi
-    
-    mov  edi, term_buf
+    mov  ebx, [term_active_id]
+    shl  ebx, 2
+    mov  edi, [term_buf_ptrs + ebx]
     add  edi, ecx
     mov  [edi],   al
     mov  [edi+1], dl
@@ -136,18 +161,17 @@ term_buf_write:
 term_buf_scroll:
     pusha
     mov  ebx, [term_active_id]
-    mov  eax, TERM_BUF_COLS * TERM_BUF_ROWS * 2
-    imul eax, ebx
+    shl  ebx, 2
+    mov  eax, [term_buf_ptrs + ebx]
     
-    mov  esi, term_buf + (TERM_BUF_COLS * 2)
-    add  esi, eax
-    mov  edi, term_buf
-    add  edi, eax
+    mov  esi, eax
+    add  esi, (TERM_BUF_COLS * 2)
+    mov  edi, eax
     mov  ecx, (TERM_BUF_ROWS - 1) * TERM_BUF_COLS * 2 / 4
     rep  movsd
     
-    mov  edi, term_buf + ((TERM_BUF_ROWS - 1) * TERM_BUF_COLS * 2)
-    add  edi, eax
+    mov  edi, eax
+    add  edi, ((TERM_BUF_ROWS - 1) * TERM_BUF_COLS * 2)
     mov  ecx, TERM_BUF_COLS * 2 / 4
     xor  eax, eax
     rep  stosd
@@ -159,7 +183,6 @@ term_buf_scroll:
 ; -
 term_redraw:
     pusha
-    ; ECX is already win_id from wm_draw_dirty
     mov  [term_draw_id], ecx
     call term_update_coords
 
@@ -173,7 +196,14 @@ term_redraw:
     mov  esi, TERM_BG
     call fb_fill_rect
 
-    ; replay
+    ; get buffer pointer
+    mov  eax, [term_draw_id]
+    shl  eax, 2
+    mov  edi, [term_buf_ptrs + eax]
+
+    test edi, edi
+    jz   .rdone                 ; If 0, skip drawing characters
+
     mov  dword [term_ri], 0
 .rrow:
     mov  esi, [term_draw_id]
@@ -189,49 +219,39 @@ term_redraw:
     cmp  [term_ci], eax
     jge  .rnext_row
 
-    ; buf address = term_buf + win*SIZE + ri*COLS*2 + ci*2
+    ; offset = (ri * 64 + ci) * 2
     mov  eax, [term_ri]
-    imul eax, TERM_BUF_COLS * 2
-    mov  ecx, [term_ci]
-    imul ecx, 2
-    add  eax, ecx
+    shl  eax, 6              ; row * 64
+    add  eax, [term_ci]
+    shl  eax, 1              ; * 2
     
-    mov  ecx, [term_draw_id]
-    imul ecx, TERM_BUF_COLS * TERM_BUF_ROWS * 2
-    add  eax, ecx
+    mov  ebx, edi
+    add  ebx, eax
     
-    add  eax, term_buf
+    movzx eax, byte [ebx]      ; AL = character
+    test  al, al
+    jz    .rskip
 
-    mov  cl,  [eax]             ; CL = char
-    test cl, cl
-    jz   .rskip
-
-    mov  [term_tmp_char], cl
+    movzx edx, byte [ebx + 1]  ; DL = attribute byte (FG + BG)
+    push  eax                  ; preserve character code in AL
     
-    mov  eax, [term_ri]
-    imul eax, TERM_BUF_COLS * 2
-    mov  ecx, [term_ci]
-    imul ecx, 2
-    add  eax, ecx
-    mov  ecx, [term_draw_id]
-    imul ecx, TERM_BUF_COLS * TERM_BUF_ROWS * 2
-    add  eax, ecx
-    add  eax, term_buf + 1
-    mov  dl, [eax]              ; DL = colour
-
     mov  esi, [term_draw_id]
     imul esi, 4
     mov  ebx, [term_ci]
-    imul ebx, 8
+    shl  ebx, 3                ; convert column to pixel X
     add  ebx, [term_cx + esi]
 
     mov  ecx, [term_ri]
-    imul ecx, 8
+    shl  ecx, 3                ; convert row to pixel Y
     add  ecx, [term_cy + esi]
 
-    mov  al,  [term_tmp_char]
-    mov  dh,  TERM_BG
-    call fb_draw_char
+    ; Split attribute byte: DL = foreground , DH = background
+    mov  dh, dl
+    shr  dh, 4
+    and  dl, 0x0F
+
+    pop  eax                   ; restore character code into AL
+    call fb_draw_char          ; AL=char, EBX=x, ECX=y, DL=fg, DH=bg
 
 .rskip:
     inc  dword [term_ci]
@@ -555,19 +575,6 @@ term_putchar:
 
 term_putchar_col:
     pusha
-    push edx
-    push eax
-    mov  dx, 0x3FD
-    in   al, dx
-    test al, 0x20
-    jz   .skip_serial_pm
-    mov  dx, 0x3F8
-    pop  eax
-    push eax
-    out  dx, al
-.skip_serial_pm:
-    pop  eax
-    pop  edx
 
     cmp  al, 10
     je   .nl
@@ -776,10 +783,10 @@ term_ri:          dd 0
 term_ci:          dd 0
 term_tmp_char:    db 0
 term_scroll_lim:  dd 0
-
-term_buf          equ 0x134000
+; term_buf_ptrs is now in pm_data.asm
 
 term_str_banner:  db OS_NAME, ' v', OS_VERSION, ' - type help for commands', 0
 term_str_disk_ok: db 'Data disk: OK', 0
+term_buf_tag:    db 'terminal_buf', 0
 term_str_disk_no: db 'Data disk: not found (no -drive attached?)', 0
 term_str_prompt:  db '> ', 0
